@@ -70,7 +70,7 @@ export default function App() {
             }
 
             if (stroke.tool === 'eraser') {
-                ctx.strokeStyle = theme === 'dark' ? '#1a1a1a' : '#ffffff'
+                ctx.strokeStyle = theme === 'dark' ? '#292524' : '#ffffff'
             } else {
                 ctx.strokeStyle = stroke.color
             }
@@ -102,7 +102,7 @@ export default function App() {
             }
 
             if (tool === 'eraser') {
-                ctx.strokeStyle = theme === 'dark' ? '#1a1a1a' : '#ffffff'
+                ctx.strokeStyle = theme === 'dark' ? '#292524' : '#ffffff'
             } else {
                 ctx.strokeStyle = color
             }
