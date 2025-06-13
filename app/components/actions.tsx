@@ -9,7 +9,7 @@ function CTA({
         <section {...props} className={cn('relative z-10 py-20 px-6', className)}>
             <div className="max-w-4xl mx-auto text-center relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 via-purple-600/20 to-blue-600/20 rounded-3xl blur-2xl"></div>
-                <div className="relative backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 rounded-3xl p-12 border border-gray-300 dark:border-slate-600">
+                <div className="relative backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 rounded-3xl p-12 border border-gray-300 dark:border-stone-600">
                     <h2 className="text-4xl font-bold mb-6 bg-gradient-to-r from-red-400 via-yellow-400 to-purple-400 bg-clip-text text-transparent">
                         Ready to Create Magic?
                     </h2>

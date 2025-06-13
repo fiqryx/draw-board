@@ -44,7 +44,7 @@ function FeatureCard({ icon, title, description, gradient }: {
     gradient: string
 }) {
     return (
-        <div className="group p-8 rounded-2xl backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 border border-gray-300 dark:border-slate-600 hover:bg-white/70 dark:hover:bg-stone-800/50 transition-all duration-500 hover:scale-105 hover:border-gray-400 dark:hover:border-slate-500 relative overflow-hidden">
+        <div className="group p-8 rounded-2xl backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 border border-gray-300 dark:border-stone-600 hover:bg-white/70 dark:hover:bg-stone-800/50 transition-all duration-500 hover:scale-105 hover:border-gray-400 dark:hover:border-stone-500 relative overflow-hidden">
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
             <div className={`p-4 rounded-xl bg-gradient-to-r ${gradient} shadow-2xl inline-block mb-4 group-hover:scale-110 transition-transform duration-300`}>
                 <div className="text-white">

@@ -9,7 +9,7 @@ function Footer({
         <footer
             {...props}
             className={cn(
-                'relative z-10 py-8 px-6 backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 border-t border-gray-200 dark:border-slate-700 mt-20',
+                'relative z-10 py-8 px-6 backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 border-t border-gray-200 dark:border-stone-700 mt-20',
                 className
             )}
         >

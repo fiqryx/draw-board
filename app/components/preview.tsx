@@ -8,7 +8,7 @@ function Preview({
     return (
         <section {...props} className={cn('relative z-10 py-16 px-6', className)}>
             <div className="max-w-6xl mx-auto">
-                <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-300 dark:border-slate-600 backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 hover:bg-white/70 dark:hover:bg-stone-800/50 transition-all duration-500 hover:scale-[1.02]">
+                <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-300 dark:border-stone-600 backdrop-blur-lg bg-white/50 dark:bg-stone-900/50 hover:bg-white/70 dark:hover:bg-stone-800/50 transition-all duration-500 hover:scale-[1.02]">
                     <div className="p-4 flex items-center bg-gradient-to-r from-red-600/30 via-purple-600/30 to-blue-600/30 backdrop-blur-lg">
                         <div className="flex space-x-2">
                             <div className="w-3 h-3 rounded-full bg-gradient-to-r from-red-400 to-red-500 shadow-lg shadow-red-500/50"></div>

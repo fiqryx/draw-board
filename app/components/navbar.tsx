@@ -13,7 +13,7 @@ function Navbar({
         <nav
             {...props}
             className={cn(
-                'relative z-10 px-6 py-4 backdrop-blur-lg bg-white/70 dark:bg-stone-900/50 border-b border-gray-200 dark:border-slate-700',
+                'relative z-10 px-6 py-4 backdrop-blur-lg bg-white/70 dark:bg-stone-900/50 border-b border-gray-200 dark:border-stone-700',
                 className
             )}>
             <div className="max-w-6xl mx-auto flex justify-between items-center">
@@ -28,7 +28,7 @@ function Navbar({
                 <div className="flex items-center space-x-4">
                     <button
                         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                        className="p-2 rounded-full bg-white/50 dark:bg-stone-700/50 backdrop-blur-sm border border-gray-300 dark:border-slate-600 hover:bg-white/70 dark:hover:bg-stone-600/50 transition-all duration-300"
+                        className="p-2 rounded-full bg-white/50 dark:bg-stone-700/50 backdrop-blur-sm border border-gray-300 dark:border-stone-600 hover:bg-white/70 dark:hover:bg-stone-600/50 transition-all duration-300"
                     >
                         {theme === 'dark' ? <Sun /> : <Moon />}
                     </button>
