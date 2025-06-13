@@ -1,4 +1,5 @@
 import type { Route } from "./+types/root";
+import { Analytics } from "@vercel/analytics/react"
 import { ThemeProvider } from "./components/providers/theme-provider";
 import {
   isRouteErrorResponse,
@@ -37,6 +38,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <ThemeProvider>
           {children}
         </ThemeProvider>
+        <Analytics />
         <ScrollRestoration />
         <Scripts />
       </body>
