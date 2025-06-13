@@ -1,4 +1,4 @@
-# Interactive Whiteboard
+# Draw Board
 
 A modern, feature-rich whiteboard application built with React and CSS (Tailwind). Perfect for sketching, note-taking, presentations, and digital art creation.
 
@@ -36,7 +36,7 @@ A modern, feature-rich whiteboard application built with React and CSS (Tailwind
 ### Option 2: Local Development
 ```bash
 # Clone or download the file
-git clone [repository-url]
+git clone https://github.com/fiqryx/draw-board.git
 # and
 npm install
 # then
@@ -75,10 +75,9 @@ npm run dev
 ## 🛠️ Technical Details
 
 ### Built With
-- **HTML5 Canvas** - Core drawing functionality
-- **Vanilla JavaScript** - No external dependencies
+- **React** - Core drawing functionality
+- **React Router v7** - No external dependencies
 - **Tailwind CSS** - Modern, utility-first styling
-- **CSS Backdrop Blur** - Glassmorphism effects
 
 ### Browser Support
 - ✅ Chrome 88+
@@ -159,12 +158,6 @@ Contributions are welcome! Here's how to get started:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-- Tailwind CSS for the excellent utility-first CSS framework
-- HTML5 Canvas API for robust drawing capabilities
-- Modern web standards for cross-platform compatibility
-
 ## 📞 Support
 
 If you encounter any issues or have questions:
@@ -173,7 +166,5 @@ If you encounter any issues or have questions:
 - Include browser version and steps to reproduce
 
 ---
-
-**Made with ❤️ by [Your Name]**
 
 *Happy Drawing! 🎨*
