@@ -6,6 +6,8 @@ A modern, feature-rich whiteboard application built with React and CSS (Tailwind
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)
 
+[![Home](public/home.png)](https://pry-draw-board.vercel.app/)
+
 ## ✨ Features
 
 ### Drawing Tools
@@ -25,6 +27,8 @@ A modern, feature-rich whiteboard application built with React and CSS (Tailwind
 - **🎯 Floating Controls** - Intuitive, non-intrusive interface
 - **✨ Glassmorphism UI** - Modern semi-transparent panels
 - **🎮 Touch Support** - Native touch drawing for mobile devices
+
+[![Home](public/drawboard.gif)](https://pry-draw-board.vercel.app/)
 
 ## 🚀 Quick Start
 

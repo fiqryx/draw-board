@@ -8,7 +8,7 @@ import { Footer } from "~/components/footer";
 export function meta() {
   return [
     { title: import.meta.env.VITE_APP_NAME },
-    { name: "description", content: "Welcome to React Router!" },
+    { name: "description", content: "Simple & modern whiteboard application" },
   ];
 }
 
