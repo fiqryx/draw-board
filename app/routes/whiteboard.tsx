@@ -5,7 +5,7 @@ import { Pen, Pencil, Eraser, Undo, Redo, Sun, Moon, Trash2, CircleHelp, Highlig
 
 export function meta() {
     return [
-        { title: "Interactive Whiteboard" },
+        { title: `${import.meta.env.VITE_APP_NAME} - Board` },
         { name: "description", content: "Simple & modern whiteboard application" },
     ];
 }
@@ -315,7 +315,7 @@ export default function App() {
                     }}
                     onTouchEnd={stopDrawing}
                     className={cn(
-                        'absolute inset-0 w-full h-full cursor-crosshair bg-white dark:bg-stone-800',
+                        'absolute inset-0 w-full h-full cursor-crosshair bg-white dark:bg-stone-800 transition-colors duration-300',
                         tool === 'eraser' && 'cursor-grab',
                     )}
                 />

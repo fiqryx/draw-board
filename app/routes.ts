@@ -1,5 +1,6 @@
 import { type RouteConfig, route } from "@react-router/dev/routes";
 
 export default [
-    route("/", "routes/whiteboard.tsx"),
+    route("/", "routes/home.tsx"),
+    route("/board", "routes/whiteboard.tsx"),
 ] satisfies RouteConfig;
