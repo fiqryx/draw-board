@@ -1,7 +1,7 @@
 import { cn } from '~/lib/utils'
 import { useTheme } from '~/components/providers/theme-provider'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Pen, Pencil, Eraser, Undo, Redo, Sun, Moon, Trash2, CircleHelp, Highlighter } from 'lucide-react'
+import { Pen, Pencil, Eraser, Undo, Redo, Sun, Moon, Trash2, CircleHelp, Highlighter, Download } from 'lucide-react'
 
 export function meta() {
     return [
@@ -23,6 +23,21 @@ type Stroke = {
     size: number
     tool: Tool
 }
+
+const helpItems = [
+    { label: 'Undo', shortcut: 'Ctrl+Z' },
+    { label: 'Redo', shortcut: 'Ctrl+Y or Ctrl+Shift+Z' },
+    { label: 'Clear', shortcut: 'Ctrl+K' },
+    { label: 'Download', shortcut: 'Ctrl+D' },
+    { label: 'Pen', shortcut: 'Ctrl+P' },
+    { label: 'Pencil', shortcut: 'Ctrl+I' },
+    { label: 'Highlighter', shortcut: 'Ctrl+U' },
+    { label: 'Eraser', shortcut: 'Ctrl+E' },
+    { label: 'Dark/Light', shortcut: 'Ctrl+L' },
+    { label: 'Size +', shortcut: 'Ctrl+] or Scroll Up' },
+    { label: 'Size -', shortcut: 'Ctrl+[ or Scroll Down' },
+    { label: 'Help', shortcut: 'Ctrl+H' },
+]
 
 export default function App() {
     const { theme, setTheme } = useTheme();
@@ -175,11 +190,30 @@ export default function App() {
         setIsDrawing(false);
     }
 
+    const donwloadImage = () => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext('2d');
+        if (!canvas || !context) return
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        // draw background
+        context.globalCompositeOperation = 'destination-over';
+        context.fillStyle = theme === 'dark' ? '#292524' : '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        // create download link
+        const a = document.createElement('a');
+        a.setAttribute('download', `drawboard.png`);
+        a.setAttribute('href', canvas.toDataURL('png'));
+        a.click();
+        // restore original canvas state
+        context.putImageData(imageData, 0, 0);
+        context.globalCompositeOperation = 'source-over';
+    };
+
     const clearCanvas = useCallback(() => {
         if (strokes.length === 0) return
         setStrokes([]);
         addToHistory([]);
-    }, [strokes, addToHistory])
+    }, [strokes, addToHistory]);
 
     const undo = useCallback(() => {
         if (historyIndex > 0) {
@@ -230,6 +264,8 @@ export default function App() {
                         break
                     case 'y':
                         redo()
+                    case 'd':
+                        donwloadImage()
                         break
                     case 'l':
                         setTheme(theme === 'dark' ? 'light' : 'dark')
@@ -369,6 +405,19 @@ export default function App() {
                         <Trash2 className='size-5' />
                     </button>
                     <button
+                        onClick={donwloadImage}
+                        disabled={strokes.length === 0}
+                        className={cn(
+                            'p-2 rounded-full text-white',
+                            strokes.length === 0
+                                ? 'opacity-50 cursor-not-allowed'
+                                : 'hover:bg-zinc-600'
+                        )}
+                        title="Download (Ctrl+D)"
+                    >
+                        <Download className='size-5' />
+                    </button>
+                    <button
                         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                         className="p-2 rounded-full text-white hover:bg-zinc-600"
                         title={`${theme === 'dark' ? 'Light' : 'Dark'} Mode (Ctrl+L)`}
@@ -455,62 +504,24 @@ export default function App() {
                         onMouseDown={() => setShowShortcuts(false)}
                         className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-zinc-700 shadow-xl rounded-lg p-4 z-20 w-72 text-white"
                     >
-                        <div className="flex justify-between items-center mb-2">
+                        <div className="relative flex justify-between items-center mb-2">
                             <h3 className="font-bold">Keyboard Shortcuts</h3>
                             <button
                                 onClick={() => setShowShortcuts(false)}
-                                className="p-1 rounded-full hover:bg-zinc-600"
+                                className="absolute -top-2 -right-2 p-1 rounded-full hover:bg-zinc-600"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                                 </svg>
                             </button>
                         </div>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between items-center">
-                                <span>Undo:</span>
-                                <span className="text-xs font-mono">Ctrl+Z</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Redo:</span>
-                                <span className="text-xs font-mono">Ctrl+Y or Ctrl+Shift+Z</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Clear:</span>
-                                <span className="text-xs font-mono">Ctrl+K</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Pen:</span>
-                                <span className="text-xs font-mono">Ctrl+P</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Pencil:</span>
-                                <span className="text-xs font-mono">Ctrl+I</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Highlighter:</span>
-                                <span className="text-xs font-mono">Ctrl+U</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Eraser:</span>
-                                <span className="text-xs font-mono">Ctrl+E</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Dark/Light:</span>
-                                <span className="text-xs font-mono">Ctrl+L</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Size +:</span>
-                                <span className="text-xs font-mono">Ctrl+] or Scroll Up</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Size -:</span>
-                                <span className="text-xs font-mono">Ctrl+[ or Scroll Down</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span>Help:</span>
-                                <span className="text-xs font-mono">Ctrl+H</span>
-                            </div>
+                        <div className="space-y-2 text-xs">
+                            {helpItems.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-center">
+                                    <span>{item.label}:</span>
+                                    <span className="font-mono">{item.shortcut}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
