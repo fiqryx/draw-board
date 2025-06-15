@@ -351,7 +351,7 @@ export default function App() {
                     }}
                     onTouchEnd={stopDrawing}
                     className={cn(
-                        'absolute inset-0 w-full h-full cursor-crosshair bg-white dark:bg-stone-800 transition-colors duration-300',
+                        'absolute inset-0 w-full h-full cursor-crosshair bg-white dark:bg-stone-800',
                         tool === 'eraser' && 'cursor-grab',
                     )}
                 />
