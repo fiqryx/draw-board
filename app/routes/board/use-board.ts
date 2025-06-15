@@ -1,25 +1,44 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
-export type Tool = 'pen' | 'pencil' | 'eraser' | 'highlighter'
+export type ShapeType = 'rectangle' | 'circle' | 'line'
+export type Tool = 'pen' | 'pencil' | 'eraser' | 'highlighter' | ShapeType
 export type Point = { x: number, y: number }
-export type Stroke = { points: Point[], color: string, size: number, tool: Tool }
+export type DrawingObject = { type: 'stroke', data: Stroke } | { type: 'shape', data: Shape }
+export interface Stroke {
+    points: Point[],
+    color: string,
+    size: number,
+    tool: Tool
+}
+export interface Shape {
+    type: ShapeType
+    start: Point
+    end: Point
+    color: string
+    size: number
+    tool: Tool
+}
 type Options = Omit<Stroke, 'points'> & { backgroundColor?: string }
 
-function drawCanvas(ctx: CanvasRenderingContext2D, { points, color, size, tool }: Stroke) {
+function drawStroke(ctx: CanvasRenderingContext2D, { points, color, size, tool }: Stroke) {
     if (points.length === 0) return
 
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
 
-    if (tool === 'pencil') {
-        ctx.globalAlpha = 0.7
-        ctx.lineWidth = Math.max(1, size * 0.7)
-    } else if (tool === 'highlighter') {
-        ctx.globalAlpha = 0.3
-        ctx.lineWidth = size * 2
-    } else {
-        ctx.lineWidth = size
-        ctx.globalAlpha = 1.0
+    switch (tool) {
+        case 'pencil':
+            ctx.globalAlpha = 0.7
+            ctx.lineWidth = Math.max(1, size * 0.7)
+            break;
+        case 'highlighter':
+            ctx.globalAlpha = 0.3
+            ctx.lineWidth = size * 2
+            break;
+        default:
+            ctx.lineWidth = size
+            ctx.globalAlpha = 1.0
+            break;
     }
 
     ctx.lineJoin = 'round';
@@ -33,6 +52,32 @@ function drawCanvas(ctx: CanvasRenderingContext2D, { points, color, size, tool }
     ctx.stroke();
 }
 
+function drawShape(ctx: CanvasRenderingContext2D, { start, end, color, size, tool, type }: Shape) {
+    const width = end.x - start.x;
+    const height = end.y - start.y;
+
+    ctx.beginPath();
+    ctx.lineWidth = size;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 1.0;
+
+    switch (type) {
+        case 'rectangle':
+            ctx.rect(start.x, start.y, width, height);
+            break;
+        case 'circle':
+            const radius = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2));
+            ctx.arc(start.x, start.y, radius, 0, Math.PI * 2);
+            break;
+        case 'line':
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            break;
+    }
+
+    ctx.stroke();
+}
+
 export function useBoard({
     color,
     size,
@@ -41,10 +86,11 @@ export function useBoard({
 }: Options) {
     const ref = useRef<HTMLCanvasElement>(null);
 
+    const [objects, setObjects] = useState<DrawingObject[]>([]);
+    const [current, setCurrent] = useState<Stroke | Shape | null>(null);
+
     const [isDrawing, setIsDrawing] = useState<boolean>(false);
-    const [strokes, setStrokes] = useState<Stroke[]>([]);
-    const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
-    const [history, setHistory] = useState<Stroke[][]>([[]]);
+    const [history, setHistory] = useState<DrawingObject[][]>([[]]);
     const [historyIndex, setHistoryIndex] = useState<number>(0);
 
     const render = () => {
@@ -55,21 +101,23 @@ export function useBoard({
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // draw all strokes
-        strokes.forEach((item) => {
-            if (item.tool === 'eraser') {
-                item.color = backgroundColor;
+        objects.forEach((item) => {
+            if (item.data.tool === 'eraser') {
+                item.data.color = backgroundColor;
             }
-            drawCanvas(ctx, item);
+
+            item.type === 'stroke' ? drawStroke(ctx, item.data)
+                : drawShape(ctx, item.data)
         });
 
         // live drawing
-        if (isDrawing && currentStroke.length > 0) {
-            drawCanvas(ctx, {
-                tool,
-                size,
-                points: currentStroke,
-                color: tool === 'eraser' ? backgroundColor : color,
-            })
+        if (isDrawing && current) {
+            const background = tool === 'eraser' ? backgroundColor : color;
+            if ('points' in current) {
+                drawStroke(ctx, { ...current, color: background });
+            } else {
+                drawShape(ctx, { ...current, color: background });
+            }
         }
 
         ctx.globalAlpha = 1.0;
@@ -87,10 +135,10 @@ export function useBoard({
             } as any)
         }
 
-    const createHistory = (newStrokes: Stroke[]) => {
+    const createHistory = (newObjects: DrawingObject[]) => {
         setHistory(prev => {
-            const updates = prev.slice(0, historyIndex + 1);
-            return [...updates, newStrokes];
+            const newHistory = prev.slice(0, historyIndex + 1);
+            return [...newHistory, newObjects];
         });
         setHistoryIndex(prev => prev + 1);
     }
@@ -103,12 +151,26 @@ export function useBoard({
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
 
-        setCurrentStroke(prev => [...prev, { x, y }])
+        if (tool === 'pen' || tool === 'pencil' || tool === 'highlighter' || tool === 'eraser') {
+            setCurrent(prev => {
+                if (!prev || 'type' in prev) return prev; // Skip if it's a shape
+                return {
+                    ...prev,
+                    points: [...prev.points, { x, y }]
+                };
+            });
+        } else {
+            setCurrent(prev => {
+                if (!prev || !('type' in prev)) return prev; // Skip if it's a stroke
+                return {
+                    ...prev,
+                    end: { x, y }
+                };
+            });
+        }
     }
 
     const onStartDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        setIsDrawing(true);
-
         const canvas = ref.current;
         if (!canvas) return
 
@@ -116,28 +178,36 @@ export function useBoard({
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        setCurrentStroke([{ x, y }]);
+        setIsDrawing(true);
+        if (tool === 'pen' || tool === 'pencil' || tool === 'highlighter' || tool === 'eraser') {
+            setCurrent({ color, size, tool, points: [{ x, y }] });
+        } else {
+            setCurrent({ color, size, tool, type: tool, start: { x, y }, end: { x, y } });
+        }
     }
 
     const onStopDrawing = () => {
-        if (!isDrawing || currentStroke.length === 0) {
-            setIsDrawing(false)
-            setCurrentStroke([])
+        if (!isDrawing || !current) {
+            setCurrent(null);
+            setIsDrawing(false);
             return
         }
 
-        const newStroke: Stroke = { color, size, tool, points: currentStroke }
-        const newStrokes = [...strokes, newStroke];
+        const newObject: DrawingObject = 'points' in current
+            ? { type: 'stroke', data: current }
+            : { type: 'shape', data: current };
 
-        setStrokes(newStrokes);
-        createHistory(newStrokes);
-        setCurrentStroke([]);
+        const newObjects = [...objects, newObject];
+
+        setObjects(newObjects);
+        createHistory(newObjects);
+        setCurrent(null);
         setIsDrawing(false);
     }
 
     const clear = () => {
-        if (strokes.length === 0) return
-        setStrokes([]);
+        if (objects.length === 0) return
+        setObjects([]);
         createHistory([]);
     }
 
@@ -145,7 +215,7 @@ export function useBoard({
         if (historyIndex > 0) {
             const newIndex = historyIndex - 1;
             setHistoryIndex(newIndex);
-            setStrokes(history[newIndex]);
+            setObjects(history[newIndex]);
         }
     }
 
@@ -153,7 +223,7 @@ export function useBoard({
         if (historyIndex < history.length - 1) {
             const newIndex = historyIndex + 1;
             setHistoryIndex(newIndex);
-            setStrokes(history[newIndex]);
+            setObjects(history[newIndex]);
         }
     }
 
@@ -170,7 +240,7 @@ export function useBoard({
 
         // create download link
         const a = document.createElement('a');
-        a.setAttribute('download', `drawboard.png`);
+        a.setAttribute('download', `drawboard.${type}`);
         a.setAttribute('href', canvas.toDataURL(type, quality));
         a.click();
 
@@ -199,7 +269,7 @@ export function useBoard({
 
     return {
         ref,
-        isBlank: strokes.length === 0,
+        isBlank: objects.length === 0,
         canUndo: historyIndex > 0,
         canRedo: historyIndex < history.length - 1,
         onDrawing,

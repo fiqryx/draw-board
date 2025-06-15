@@ -13,7 +13,10 @@ import {
     Trash2,
     CircleHelp,
     Highlighter,
-    Download
+    Download,
+    Square,
+    Circle,
+    Slash
 } from 'lucide-react'
 
 const helpers = [
@@ -25,7 +28,10 @@ const helpers = [
     { label: 'Pencil', shortcut: 'Ctrl+I' },
     { label: 'Highlighter', shortcut: 'Ctrl+U' },
     { label: 'Eraser', shortcut: 'Ctrl+E' },
-    { label: 'Dark/Light', shortcut: 'Ctrl+L' },
+    { label: 'Rectangle', shortcut: 'Ctrl+R' },
+    { label: 'Circle', shortcut: 'Ctrl+C' },
+    { label: 'Line', shortcut: 'Ctrl+L' },
+    { label: 'Dark/Light', shortcut: 'Ctrl+M' },
     { label: 'Size +', shortcut: 'Ctrl+] or Scroll Up' },
     { label: 'Size -', shortcut: 'Ctrl+[ or Scroll Down' },
     { label: 'Help', shortcut: 'Ctrl+H' },
@@ -66,6 +72,7 @@ export default function Page() {
         backgroundColor: theme === 'dark' ? '#292524' : '#ffffff'
     });
 
+    // shortcut
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (document.activeElement?.tagName === 'INPUT') return
@@ -81,7 +88,7 @@ export default function Page() {
                     case 'd':
                         toImage()
                         break
-                    case 'l':
+                    case 'm':
                         setTheme(theme === 'dark' ? 'light' : 'dark')
                         break
                     case 'e':
@@ -95,6 +102,14 @@ export default function Page() {
                         break
                     case 'u':
                         setTool('highlighter')
+                    case 'r':
+                        setTool('rectangle');
+                        break;
+                    case 'c':
+                        setTool('circle');
+                        break;
+                    case 'l':
+                        setTool('line');
                         break
                     case 'k':
                         clear()
@@ -210,7 +225,7 @@ export default function Page() {
                         tabIndex={-1}
                         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                         className="p-2 rounded-full text-white hover:bg-zinc-600"
-                        title={`${theme === 'dark' ? 'Light' : 'Dark'} Mode (Ctrl+L)`}
+                        title={`${theme === 'dark' ? 'Light' : 'Dark'} Mode (Ctrl+M)`}
                     >
                         <Sun className='size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 hidden dark:block' />
                         <Moon className='size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 dark:hidden' />
@@ -265,6 +280,30 @@ export default function Page() {
                         title="Eraser (Ctrl+E)"
                     >
                         <Eraser className='size-5' />
+                    </button>
+
+                    <button
+                        onClick={() => setTool('line')}
+                        className={cn('p-2 rounded-full text-white hover:bg-zinc-600', tool === 'line' ? 'bg-zinc-500' : '')}
+                        title="Line (Ctrl+L)"
+                    >
+                        <Slash className='size-5' />
+                    </button>
+
+                    <button
+                        onClick={() => setTool('rectangle')}
+                        className={cn('p-2 rounded-full text-white hover:bg-zinc-600', tool === 'rectangle' ? 'bg-zinc-500' : '')}
+                        title="Rectangle (Ctrl+R)"
+                    >
+                        <Square className='size-5' />
+                    </button>
+
+                    <button
+                        onClick={() => setTool('circle')}
+                        className={cn('p-2 rounded-full text-white hover:bg-zinc-600', tool === 'circle' ? 'bg-zinc-500' : '')}
+                        title="Circle (Ctrl+C)"
+                    >
+                        <Circle className='size-5' />
                     </button>
 
                     {/* Size Slider */}
