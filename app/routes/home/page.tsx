@@ -12,7 +12,7 @@ export function meta() {
   ];
 }
 
-export default function Home() {
+export default function Page() {
   return (
     <div className="min-h-screen relative overflow-hidden bg-gray-50 dark:bg-stone-800 text-gray-900 dark:text-white transition-colors duration-300">
       {/* Animated rainbow background gradients */}

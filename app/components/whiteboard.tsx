@@ -3,13 +3,6 @@ import { useTheme } from '~/components/providers/theme-provider'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Pen, Pencil, Eraser, Undo, Redo, Sun, Moon, Trash2, CircleHelp, Highlighter, Download } from 'lucide-react'
 
-export function meta() {
-    return [
-        { title: `${import.meta.env.VITE_APP_NAME} - Board` },
-        { name: "description", content: "Simple & modern whiteboard application" },
-    ];
-}
-
 type Point = {
     x: number
     y: number
