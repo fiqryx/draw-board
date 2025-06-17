@@ -22,7 +22,10 @@ import {
     MousePointer2,
     Palette,
     Type,
-    MoveRight
+    MoveRight,
+    ZoomIn,
+    ZoomOut,
+    Hand
 } from 'lucide-react'
 import { Textarea } from '~/components/ui/textarea';
 
@@ -31,19 +34,20 @@ const helpers = [
     { label: 'Redo', shortcut: 'Ctrl+Y or Ctrl+Shift+Z' },
     { label: 'Clear', shortcut: 'Ctrl+C' },
     { label: 'Download', shortcut: 'Ctrl+D' },
-    { label: 'Choice', shortcut: '1' },
-    { label: 'Pen', shortcut: '2' },
-    { label: 'Pencil', shortcut: '3' },
-    { label: 'Highlighter', shortcut: '4' },
-    { label: 'Eraser', shortcut: '5' },
-    { label: 'Rectangle', shortcut: '6' },
-    { label: 'Arrow', shortcut: '7' },
-    { label: 'Circle', shortcut: '8' },
-    { label: 'Line', shortcut: '9' },
-    { label: 'Text', shortcut: '0' },
+    { label: 'Hand', shortcut: '1' },
+    { label: 'Choice', shortcut: '2' },
+    { label: 'Pen', shortcut: '3' },
+    { label: 'Pencil', shortcut: '4' },
+    { label: 'Highlighter', shortcut: '5' },
+    { label: 'Eraser', shortcut: '6' },
+    { label: 'Line', shortcut: '7' },
+    { label: 'Arrow', shortcut: '8' },
+    { label: 'Rectangle', shortcut: '9' },
+    { label: 'Circle', shortcut: '0' },
+    { label: 'Text', shortcut: '-' },
     { label: 'Dark/Light', shortcut: 'Ctrl+L' },
-    { label: 'Size +', shortcut: 'Ctrl+] or Ctrl+Scroll Up' },
-    { label: 'Size -', shortcut: 'Ctrl+[ or Ctrl+Scroll Down' },
+    { label: 'Size +', shortcut: 'Ctrl+]' },
+    { label: 'Size -', shortcut: 'Ctrl+[' },
     // { label: 'Options', shortcut: 'Ctrl+O' },
     { label: 'Help', shortcut: 'Ctrl+H' },
 ];
@@ -88,6 +92,10 @@ export default function Page() {
         addText,
         selectAll,
         deleteSelected,
+        zoom,
+        zoomIn,
+        zoomOut,
+        resetZoom
     } = useDraw({
         color,
         size,
@@ -156,33 +164,38 @@ export default function Page() {
             } else {
                 switch (e.key.toLowerCase()) {
                     case '1':
-                        setTool('select');
+                        setTool('hand');
                         break;
                     case '2':
-                        setTool('pen');
+                        setTool('select');
                         break;
                     case '3':
-                        setTool('pencil');
+                        setTool('pen');
                         break;
                     case '4':
-                        setTool('highlighter');
+                        setTool('pencil');
                         break;
                     case '5':
-                        setTool('eraser');
+                        setTool('highlighter');
                         break;
                     case '6':
-                        setTool('line');
+                        setTool('eraser');
                         break;
                     case '7':
-                        setTool('arrow');
+                        setTool('line');
+                        break;
                     case '8':
-                        setTool('rectangle');
+                        setTool('arrow');
                         break;
                     case '9':
-                        setTool('circle');
+                        setTool('rectangle');
                         break;
                     case '0':
+                        setTool('circle');
+                        break;
+                    case '-':
                         setTool('text');
+                        break;
                     case 'delete':
                         deleteSelected();
                         break
@@ -190,22 +203,22 @@ export default function Page() {
             }
         }
 
-        const handleWheel = (e: WheelEvent) => {
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                if (e.deltaY < 0) {
-                    setSize(prev => Math.min(prev + 1, 50))
-                } else {
-                    setSize(prev => Math.max(prev - 1, 1))
-                }
-            }
-        };
+        // const handleWheel = (e: WheelEvent) => {
+        //     if (e.ctrlKey || e.metaKey) {
+        //         e.preventDefault();
+        //         if (e.deltaY < 0) {
+        //             setSize(prev => Math.min(prev + 1, 50))
+        //         } else {
+        //             setSize(prev => Math.max(prev - 1, 1))
+        //         }
+        //     }
+        // };
 
         window.addEventListener('keydown', handleKeyDown)
-        window.addEventListener('wheel', handleWheel, { passive: false })
+        // window.addEventListener('wheel', handleWheel, { passive: false })
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
-            window.removeEventListener('wheel', handleWheel)
+            // window.removeEventListener('wheel', handleWheel)
         }
     }, [undo, redo, clear, theme, isEditingText]);
 
@@ -250,7 +263,13 @@ export default function Page() {
                 )}
 
                 <div className="absolute hidden sm:flex items-center bottom-4 left-4 bg-zinc-700 shadow-lg rounded-lg p-2 text-xs">
-                    <span className="font-semibold capitalize">100%</span>
+                    <Button tabIndex={-1} onClick={zoomOut}>
+                        <ZoomOut />
+                    </Button>
+                    <span className="font-semibold capitalize">{Math.round(zoom * 100).toFixed(0)}%</span>
+                    <Button tabIndex={-1} onClick={zoomIn}>
+                        <ZoomIn />
+                    </Button>
                     <span className="mx-2">•</span>
                     <span className="font-mono">{color}</span>
                     <span className="mx-2">•</span>
@@ -282,34 +301,37 @@ export default function Page() {
                 </div>
 
                 <div className="absolute not-sm:bottom-0 sm:top-4 sm:left-1/2 w-full sm:w-fit transform sm:-translate-x-1/2 bg-zinc-700 shadow-lg sm:rounded-lg p-2 flex flex-wrap items-center gap-2 z-10">
-                    <Button title="Choice (1)" data-active={tool === 'select'} onClick={() => setTool('select')}>
+                    <Button title="Hand (1)" data-active={tool === 'hand'} onClick={() => setTool('hand')}>
+                        <Hand />
+                    </Button>
+                    <Button title="Choice (2)" data-active={tool === 'select'} onClick={() => setTool('select')}>
                         <MousePointer2 />
                     </Button>
-                    <Button title="Pen (2)" data-active={tool === 'pen'} onClick={() => setTool('pen')}>
+                    <Button title="Pen (3)" data-active={tool === 'pen'} onClick={() => setTool('pen')}>
                         <Pen />
                     </Button>
-                    <Button title="Pencil (3)" data-active={tool === 'pencil'} onClick={() => setTool('pencil')}>
+                    <Button title="Pencil (4)" data-active={tool === 'pencil'} onClick={() => setTool('pencil')}>
                         <Pencil />
                     </Button>
-                    <Button title="Highlighter (4)" data-active={tool === 'highlighter'} onClick={() => setTool('highlighter')}>
+                    <Button title="Highlighter (5)" data-active={tool === 'highlighter'} onClick={() => setTool('highlighter')}>
                         <Highlighter />
                     </Button>
-                    <Button title="Eraser (5)" data-active={tool === 'eraser'} onClick={() => setTool('eraser')}>
+                    <Button title="Eraser (6)" data-active={tool === 'eraser'} onClick={() => setTool('eraser')}>
                         <Eraser />
                     </Button>
-                    <Button title="Line (6)" data-active={tool === 'line'} onClick={() => setTool('line')}>
+                    <Button title="Line (7)" data-active={tool === 'line'} onClick={() => setTool('line')}>
                         <Slash />
                     </Button>
-                    <Button title="Arrow (7)" data-active={tool === 'arrow'} onClick={() => setTool('arrow')}>
+                    <Button title="Arrow (8)" data-active={tool === 'arrow'} onClick={() => setTool('arrow')}>
                         <MoveRight />
                     </Button>
-                    <Button title="Rectangle (8)" data-active={tool === 'rectangle'} onClick={() => setTool('rectangle')}>
+                    <Button title="Rectangle (9)" data-active={tool === 'rectangle'} onClick={() => setTool('rectangle')}>
                         <Square />
                     </Button>
-                    <Button title="Circle (9)" data-active={tool === 'circle'} onClick={() => setTool('circle')}>
+                    <Button title="Circle (0)" data-active={tool === 'circle'} onClick={() => setTool('circle')}>
                         <Circle />
                     </Button>
-                    <Button title="Text (0)" data-active={tool === 'text'} onClick={() => setTool('text')}>
+                    <Button title="Text (-)" data-active={tool === 'text'} onClick={() => setTool('text')}>
                         <Type />
                     </Button>
                     <Button title="Options (Ctrl+O)" data-active={showOptions} className='lg:hidden' onClick={() => setShowOptions(prev => !prev)}>
@@ -329,7 +351,6 @@ export default function Page() {
                     <div className="grid gap-1">
                         <Label className='text-xs'>Strokes</Label>
                         <div className="grid grid-cols-6 items-center gap-1">
-                            {/* <ColorButton className="bg-black" data-active={color === '#000000'} onClick={() => setColor('#000000')} /> */}
                             <ColorButton className="bg-red-500" data-active={color === '#ef4444'} onClick={() => setColor('#ef4444')} />
                             <ColorButton className="bg-blue-500" data-active={color === '#3b82f6'} onClick={() => setColor('#3b82f6')} />
                             <ColorButton className="bg-green-500" data-active={color === '#10b981'} onClick={() => setColor('#10b981')} />
@@ -351,8 +372,8 @@ export default function Page() {
 
                 {showHelp && (
                     <div
-                        onMouseDown={() => setShowHelp(false)}
-                        className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-zinc-700 shadow-xl rounded-lg p-4 z-20 w-72 text-white"
+                        style={{ scrollbarWidth: 'thin' }}
+                        className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-zinc-700 shadow-xl rounded-lg p-4 z-20 w-72 max-h-96 overflow-auto text-white"
                     >
                         <div className="relative flex justify-between items-center mb-2">
                             <h3 className="font-bold">Keyboard Shortcuts</h3>

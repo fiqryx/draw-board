@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 
 export type ShapeType = 'rectangle' | 'circle' | 'line' | 'arrow';
-export type Tool = 'select' | 'text' | 'pen' | 'pencil' | 'eraser' | 'highlighter' | ShapeType;
+export type Tool = 'select' | 'text' | 'pen' | 'pencil' | 'eraser' | 'highlighter' | 'hand' | ShapeType;
 export type Point = { x: number; y: number };
 export type DrawingObject =
     | { type: 'stroke'; data: Stroke }
@@ -132,6 +132,8 @@ function getCursor(tool: Tool) {
             return 'text'
         case 'select':
             return 'default'
+        case 'hand':
+            return 'grab'
         default:
             return 'crosshair'
     }
@@ -294,6 +296,10 @@ export function useDraw({
     backgroundColor = '#ffffff'
 }: Options) {
     const ref = useRef<HTMLCanvasElement>(null);
+
+    const needsRender = useRef(false);
+    const animationFrameRef = useRef<number | null>(null);
+
     const [objects, setObjects] = useState<DrawingObject[]>([]);
     const [current, setCurrent] = useState<Stroke | Shape | TextObject | SelectionBox | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -314,18 +320,25 @@ export function useDraw({
     } | null>(null);
     const [initialMousePos, setInitialMousePos] = useState<Point | null>(null);
     const [resizeStartData, setResizeStartData] = useState<DrawingObject[]>([]);
-    const animationFrameRef = useRef<number | null>(null);
-    const needsRender = useRef(false);
+
+    const [canvasOffset, setCanvasOffset] = useState<Point>({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [isPanning, setIsPanning] = useState(false);
+    const [panStart, setPanStart] = useState<Point | null>(null);
 
     const render = () => {
         const canvas = ref?.current;
         const ctx = canvas?.getContext('2d');
 
         if (!canvas || !ctx) return;
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(canvasOffset.x, canvasOffset.y);
+        ctx.scale(zoom, zoom);
 
         // Draw all objects
-        objects.forEach((item, idx) => {
+        objects.forEach((item) => {
             if (item.type === 'stroke') {
                 if (item.data.tool === 'eraser') {
                     item.data.color = backgroundColor;
@@ -399,6 +412,7 @@ export function useDraw({
             }
         }
 
+        ctx.restore();
         ctx.globalAlpha = 1.0;
     };
 
@@ -410,6 +424,13 @@ export function useDraw({
                 needsRender.current = false;
             });
         }
+    };
+
+    const screenToCanvas = (screenX: number, screenY: number) => {
+        return {
+            x: (screenX - canvasOffset.x) / zoom,
+            y: (screenY - canvasOffset.y) / zoom
+        };
     };
 
     const getPosition = (x: number, y: number) => {
@@ -644,8 +665,22 @@ export function useDraw({
         if (!canvas) return;
 
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+
+        if (isPanning && panStart && tool === 'hand') {
+            const deltaX = screenX - panStart.x;
+            const deltaY = screenY - panStart.y;
+            setCanvasOffset(prev => ({
+                x: prev.x + deltaX,
+                y: prev.y + deltaY
+            }));
+            setPanStart({ x: screenX, y: screenY });
+            scheduleRender();
+            return;
+        }
+
+        const { x, y } = screenToCanvas(screenX, screenY);
 
         if (isResizing) {
             performResize(x, y);
@@ -706,8 +741,17 @@ export function useDraw({
         if (!canvas) return;
 
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+
+        if (tool === 'hand') {
+            setIsPanning(true);
+            setPanStart({ x: screenX, y: screenY });
+            canvas.style.cursor = 'grabbing';
+            return;
+        }
+
+        const { x, y } = screenToCanvas(screenX, screenY);
 
         if (tool === 'select') {
             const ctx = canvas.getContext('2d');
@@ -866,6 +910,16 @@ export function useDraw({
     };
 
     const onStopDrawing = () => {
+        if (isPanning) {
+            setIsPanning(false);
+            setPanStart(null);
+            const canvas = ref.current;
+            if (canvas) {
+                canvas.style.cursor = getCursor(tool);
+            }
+            return;
+        }
+
         if (isResizing) {
             createHistory([...objects]);
             setIsResizing(false);
@@ -913,6 +967,19 @@ export function useDraw({
             setCurrent(null);
             setIsDrawing(false);
         }
+    };
+
+    const zoomIn = () => {
+        setZoom(prev => Math.min(prev + 0.1, 5));
+    };
+
+    const zoomOut = () => {
+        setZoom(prev => Math.max(prev - 0.1, 0.2));
+    };
+
+    const resetZoom = () => {
+        setZoom(1);
+        setCanvasOffset({ x: 0, y: 0 });
     };
 
     const clear = () => {
@@ -969,7 +1036,7 @@ export function useDraw({
 
     useEffect(() => {
         scheduleRender();
-    }, [objects, current, selectedIndices]);
+    }, [objects, current, selectedIndices, canvasOffset]);
 
     useEffect(() => {
         const canvas = ref.current;
@@ -1029,7 +1096,75 @@ export function useDraw({
             window.removeEventListener('resize', resizeCanvas);
             canvas.removeEventListener('mousemove', handleMouseMove);
         };
-    }, [tool, selectedIndices, objects]);
+    }, [tool, selectedIndices, zoom, objects]);
+
+    // Alternative approach using refs to capture current state
+    const zoomRef = useRef(zoom);
+    const offsetRef = useRef(canvasOffset);
+
+    useEffect(() => {
+        zoomRef.current = zoom;
+        offsetRef.current = canvasOffset;
+    });
+
+    useEffect(() => {
+        const canvas = ref.current;
+        if (!canvas) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                const zoomChange = e.deltaY > 0 ? -0.1 : 0.1; // 10% decrease or increase
+
+                const currentZoom = zoomRef.current;
+                const currentOffset = offsetRef.current;
+                const newZoom = Math.max(0.2, Math.min(5, currentZoom + zoomChange));
+
+                // Calculate the point in world space that the mouse is pointing to
+                const worldPointX = (mouseX - currentOffset.x) / currentZoom;
+                const worldPointY = (mouseY - currentOffset.y) / currentZoom;
+
+                // Calculate new offset so that the world point stays under the mouse
+                const newOffset = {
+                    x: mouseX - worldPointX * newZoom,
+                    y: mouseY - worldPointY * newZoom
+                };
+
+                setZoom(newZoom);
+                setCanvasOffset(newOffset);
+            } else if (e.shiftKey) {
+                // Horizontal scrolling with Shift+wheel
+                e.preventDefault();
+                const currentOffset = offsetRef.current;
+                const scrollSpeed = 50;
+
+                const newOffset = {
+                    x: currentOffset.x - e.deltaY * scrollSpeed / 100,
+                    y: currentOffset.y
+                };
+
+                setCanvasOffset(newOffset);
+            } else {
+                // Pan behavior for vertical scrolling
+                e.preventDefault();
+                const currentOffset = offsetRef.current;
+                const scrollSpeed = 50; // Adjust this value to control scroll sensitivity
+
+                const newOffset = {
+                    x: currentOffset.x,
+                    y: currentOffset.y - e.deltaY * scrollSpeed / 100 // Invert deltaY for natural scrolling
+                };
+
+                setCanvasOffset(newOffset);
+            }
+        };
+
+        canvas.addEventListener('wheel', handleWheel, { passive: false });
+        return () => canvas.removeEventListener('wheel', handleWheel);
+    }, []);
 
     return {
         ref,
@@ -1050,6 +1185,10 @@ export function useDraw({
         redo,
         toImage,
         deleteSelected,
-        selectAll: () => setSelectedIndices(objects.map((_, idx) => idx))
+        selectAll: () => setSelectedIndices(objects.map((_, idx) => idx)),
+        zoom,
+        zoomIn,
+        zoomOut,
+        resetZoom
     };
 }
