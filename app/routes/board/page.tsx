@@ -75,6 +75,7 @@ export default function Page() {
         canRedo,
         isEditingText,
         textPosition,
+        selected,
         onDrawing,
         onStartDrawing,
         onStopDrawing,
@@ -84,7 +85,9 @@ export default function Page() {
         undo,
         redo,
         toImage,
-        addText
+        addText,
+        selectAll,
+        deleteSelected,
     } = useDraw({
         color,
         size,
@@ -97,6 +100,11 @@ export default function Page() {
         setText('');
         setTool('select');
     };
+
+    const handleSelectAll = () => {
+        setTool('select');
+        selectAll();
+    }
 
     useEffect(() => {
         if (isEditingText && textRef.current) {
@@ -116,6 +124,9 @@ export default function Page() {
                     case 'z':
                         if (e.shiftKey) redo()
                         else undo()
+                        break
+                    case 'a':
+                        handleSelectAll()
                         break
                     case 'y':
                         redo()
@@ -172,6 +183,8 @@ export default function Page() {
                         break;
                     case '0':
                         setTool('text');
+                    case 'delete':
+                        deleteSelected();
                         break
                 }
             }
@@ -208,12 +221,7 @@ export default function Page() {
                     onTouchStart={onStartTouch}
                     onTouchMove={onMoveTouch}
                     onTouchEnd={onStopDrawing}
-                    className={cn(
-                        'absolute inset-0 w-full h-full bg-white dark:bg-stone-800',
-                        !['eraser', 'select', 'text'].includes(tool) && 'cursor-crosshair',
-                        tool === 'eraser' && 'cursor-grab',
-                        tool === 'text' && 'cursor-text',
-                    )}
+                    className="absolute inset-0 w-full h-full bg-white dark:bg-stone-800"
                 />
 
                 {isEditingText && textPosition && (
@@ -256,7 +264,12 @@ export default function Page() {
                     <Button tabIndex={-1} onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y or Ctrl+Shift+Z)">
                         <Redo />
                     </Button>
-                    <Button tabIndex={-1} onClick={clear} disabled={isBlank} title="Clear (Ctrl+C)">
+                    <Button
+                        tabIndex={-1}
+                        onClick={() => selected.length > 0 ? deleteSelected() : clear()}
+                        disabled={isBlank}
+                        title={selected.length > 0 ? 'Delete (Delete)' : 'Clear (Ctrl+C)'}
+                    >
                         <Trash2 />
                     </Button>
                     <Button tabIndex={-1} onClick={() => toImage()} disabled={isBlank} title="Download (Ctrl+D)">

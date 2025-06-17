@@ -29,7 +29,6 @@ export interface TextObject {
     font: string;
 }
 type Options = Omit<Stroke, 'points'> & { backgroundColor?: string };
-
 type ResizeHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null;
 interface SelectionBox {
     start: Point;
@@ -225,6 +224,69 @@ function isBoundsInSelection(
     );
 }
 
+// Utility to get bounding box for multiple objects
+function getGroupBounds(objects: DrawingObject[], indices: number[], ctx: CanvasRenderingContext2D): { x: number; y: number; width: number; height: number } | null {
+    if (indices.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const idx of indices) {
+        const obj = objects[idx];
+        let bounds;
+        if (obj.type === 'stroke') bounds = getStrokeBounds(obj.data.points);
+        else if (obj.type === 'shape') bounds = getShapeBounds(obj.data);
+        else if (obj.type === 'text') bounds = ctx ? getTextBounds(obj.data, ctx) : null;
+        if (!bounds) continue;
+        minX = Math.min(minX, bounds.x);
+        minY = Math.min(minY, bounds.y);
+        maxX = Math.max(maxX, bounds.x + bounds.width);
+        maxY = Math.max(maxY, bounds.y + bounds.height);
+    }
+    if (minX === Infinity) return null;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+// Helper: scale a point relative to an anchor
+function scalePoint(point: Point, anchor: Point, scaleX: number, scaleY: number): Point {
+    return {
+        x: anchor.x + (point.x - anchor.x) * scaleX,
+        y: anchor.y + (point.y - anchor.y) * scaleY
+    };
+}
+
+// Helper: resize a single DrawingObject
+function resizeObject(
+    originalObj: DrawingObject,
+    newBounds: { x: number; y: number; width: number; height: number },
+    initialBounds: { x: number; y: number; width: number; height: number },
+    scaleX: number,
+    scaleY: number,
+    anchor: Point
+): DrawingObject {
+    if (originalObj.type === 'stroke') {
+        const newPoints = originalObj.data.points.map(point => scalePoint(point, anchor, scaleX, scaleY));
+        return { ...originalObj, data: { ...originalObj.data, points: newPoints } };
+    } else if (originalObj.type === 'shape') {
+        return {
+            ...originalObj,
+            data: {
+                ...originalObj.data,
+                start: scalePoint(originalObj.data.start, anchor, scaleX, scaleY),
+                end: scalePoint(originalObj.data.end, anchor, scaleX, scaleY)
+            }
+        };
+    } else if (originalObj.type === 'text') {
+        const avgScale = (scaleX + scaleY) / 2;
+        return {
+            ...originalObj,
+            data: {
+                ...originalObj.data,
+                position: scalePoint(originalObj.data.position, anchor, scaleX, scaleY),
+                size: Math.max(8, Math.min(200, originalObj.data.size * avgScale))
+            }
+        };
+    }
+    return originalObj;
+}
+
 export function useDraw({
     color,
     size,
@@ -251,7 +313,7 @@ export function useDraw({
         height: number;
     } | null>(null);
     const [initialMousePos, setInitialMousePos] = useState<Point | null>(null);
-    const [resizeStartData, setResizeStartData] = useState<DrawingObject | null>(null);
+    const [resizeStartData, setResizeStartData] = useState<DrawingObject[]>([]);
     const animationFrameRef = useRef<number | null>(null);
     const needsRender = useRef(false);
 
@@ -274,68 +336,35 @@ export function useDraw({
             } else if (item.type === 'text') {
                 drawText(ctx, item.data);
             }
+        });
 
-            if (tool === 'select' && selectedIndices.includes(idx)) {
+        // Draw selection for selected objects
+        if (tool === 'select' && selectedIndices.length > 0) {
+            // Draw group bounding box and handles
+            const groupBounds = getGroupBounds(objects, selectedIndices, ctx);
+            if (groupBounds) {
                 ctx.setLineDash([5, 5]);
                 ctx.strokeStyle = '#3b82f6';
                 ctx.lineWidth = 1;
                 ctx.globalAlpha = 0.8;
-
-                let bounds;
-                if (item.type === 'stroke') {
-                    bounds = getStrokeBounds(item.data.points);
-                } else if (item.type === 'shape') {
-                    bounds = getShapeBounds(item.data);
-                } else if (item.type === 'text') {
-                    bounds = getTextBounds(item.data, ctx);
-                }
-
-                if (bounds) {
-                    // Draw selection rectangle
-                    ctx.strokeRect(bounds.x - 5, bounds.y - 5, bounds.width + 10, bounds.height + 10);
-
-                    // Draw resize handles (only for single selection)
-                    if (selectedIndices.length === 1) {
-                        const handleSize = 8;
-                        ctx.fillStyle = '#3b82f6';
-                        ctx.globalAlpha = 1.0;
-                        ctx.setLineDash([]);
-
-                        // Top-left
-                        ctx.fillRect(
-                            bounds.x - 5 - handleSize / 2,
-                            bounds.y - 5 - handleSize / 2,
-                            handleSize,
-                            handleSize
-                        );
-                        // Top-right
-                        ctx.fillRect(
-                            bounds.x + bounds.width + 5 - handleSize / 2,
-                            bounds.y - 5 - handleSize / 2,
-                            handleSize,
-                            handleSize
-                        );
-                        // Bottom-left
-                        ctx.fillRect(
-                            bounds.x - 5 - handleSize / 2,
-                            bounds.y + bounds.height + 5 - handleSize / 2,
-                            handleSize,
-                            handleSize
-                        );
-                        // Bottom-right
-                        ctx.fillRect(
-                            bounds.x + bounds.width + 5 - handleSize / 2,
-                            bounds.y + bounds.height + 5 - handleSize / 2,
-                            handleSize,
-                            handleSize
-                        );
-                    }
-                }
-
+                ctx.strokeRect(groupBounds.x - 5, groupBounds.y - 5, groupBounds.width + 10, groupBounds.height + 10);
+                // Draw resize handles for group
+                const handleSize = 8;
+                ctx.fillStyle = '#3b82f6';
+                ctx.globalAlpha = 1.0;
+                ctx.setLineDash([]);
+                // Top-left
+                ctx.fillRect(groupBounds.x - 5 - handleSize / 2, groupBounds.y - 5 - handleSize / 2, handleSize, handleSize);
+                // Top-right
+                ctx.fillRect(groupBounds.x + groupBounds.width + 5 - handleSize / 2, groupBounds.y - 5 - handleSize / 2, handleSize, handleSize);
+                // Bottom-left
+                ctx.fillRect(groupBounds.x - 5 - handleSize / 2, groupBounds.y + groupBounds.height + 5 - handleSize / 2, handleSize, handleSize);
+                // Bottom-right
+                ctx.fillRect(groupBounds.x + groupBounds.width + 5 - handleSize / 2, groupBounds.y + groupBounds.height + 5 - handleSize / 2, handleSize, handleSize);
                 ctx.setLineDash([]);
                 ctx.globalAlpha = 1.0;
             }
-        });
+        }
 
         // Draw selection box if we're selecting multiple items
         if (tool === 'select' && isDrawing && current && 'start' in current && 'end' in current) {
@@ -431,81 +460,78 @@ export function useDraw({
         y: number,
         bounds: { x: number; y: number; width: number; height: number }
     ): ResizeHandle => {
-        if (selectedIndices.length !== 1) return null;
-
         const handleSize = 8;
         const tolerance = handleSize;
-
         // Top-left
         const tlX = bounds.x - 5;
         const tlY = bounds.y - 5;
-        if (Math.abs(x - tlX) <= tolerance && Math.abs(y - tlY) <= tolerance) {
-            return 'top-left';
-        }
-
+        if (Math.abs(x - tlX) <= tolerance && Math.abs(y - tlY) <= tolerance) return 'top-left';
         // Top-right
         const trX = bounds.x + bounds.width + 5;
         const trY = bounds.y - 5;
-        if (Math.abs(x - trX) <= tolerance && Math.abs(y - trY) <= tolerance) {
-            return 'top-right';
-        }
-
+        if (Math.abs(x - trX) <= tolerance && Math.abs(y - trY) <= tolerance) return 'top-right';
         // Bottom-left
         const blX = bounds.x - 5;
         const blY = bounds.y + bounds.height + 5;
-        if (Math.abs(x - blX) <= tolerance && Math.abs(y - blY) <= tolerance) {
-            return 'bottom-left';
-        }
-
+        if (Math.abs(x - blX) <= tolerance && Math.abs(y - blY) <= tolerance) return 'bottom-left';
         // Bottom-right
         const brX = bounds.x + bounds.width + 5;
         const brY = bounds.y + bounds.height + 5;
-        if (Math.abs(x - brX) <= tolerance && Math.abs(y - brY) <= tolerance) {
-            return 'bottom-right';
-        }
-
-        return null;
-    };
-
-    const checkResizeHandleForSelected = (x: number, y: number): ResizeHandle => {
-        if (selectedIndices.length !== 1) return null;
-
-        const obj = objects[selectedIndices[0]];
-        if (!obj) return null;
-
-        let bounds;
-        if (obj.type === 'stroke') {
-            bounds = getStrokeBounds(obj.data.points);
-        } else if (obj.type === 'shape') {
-            bounds = getShapeBounds(obj.data);
-        } else if (obj.type === 'text') {
-            const ctx = ref.current?.getContext('2d');
-            if (!ctx) return null;
-            bounds = getTextBounds(obj.data, ctx);
-        }
-
-        if (bounds) {
-            return getResizeHandle(x, y, bounds);
-        }
-
+        if (Math.abs(x - brX) <= tolerance && Math.abs(y - brY) <= tolerance) return 'bottom-right';
         return null;
     };
 
     const performResize = (x: number, y: number) => {
-        if (!isResizing || selectedIndices.length !== 1 || !resizeHandle || !initialBounds || !initialMousePos || !resizeStartData) {
+        if (!isResizing || selectedIndices.length === 0 || !resizeHandle || !initialBounds || !initialMousePos) {
             return;
         }
+        const canvas = ref.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-        const newObjects = [...objects];
-        const obj = newObjects[selectedIndices[0]];
+        // --- Group resize ---
+        if (selectedIndices.length > 1) {
+            // Determine anchor (opposite corner of the handle)
+            let anchor = { x: initialBounds.x, y: initialBounds.y };
+            if (resizeHandle === 'top-left') {
+                anchor = { x: initialBounds.x + initialBounds.width, y: initialBounds.y + initialBounds.height };
+            } else if (resizeHandle === 'top-right') {
+                anchor = { x: initialBounds.x, y: initialBounds.y + initialBounds.height };
+            } else if (resizeHandle === 'bottom-left') {
+                anchor = { x: initialBounds.x + initialBounds.width, y: initialBounds.y };
+            } // else bottom-right: anchor is top-left
 
-        const deltaX = x - initialMousePos.x;
-        const deltaY = y - initialMousePos.y;
+            // Calculate new bounds
+            let mouseCorner = { x, y };
+            let newX = Math.min(anchor.x, mouseCorner.x);
+            let newY = Math.min(anchor.y, mouseCorner.y);
+            let newWidth = Math.max(10, Math.abs(mouseCorner.x - anchor.x));
+            let newHeight = Math.max(10, Math.abs(mouseCorner.y - anchor.y));
+            let scaleX = newWidth / initialBounds.width;
+            let scaleY = newHeight / initialBounds.height;
+            scaleX = Math.max(0.2, Math.min(5, scaleX));
+            scaleY = Math.max(0.2, Math.min(5, scaleY));
+            const newBounds = { x: newX, y: newY, width: newWidth, height: newHeight };
 
-        if (obj.type === 'stroke' && resizeStartData.type === 'stroke') {
+            // Resize all selected objects
+            const updatedObjects = [...objects];
+            selectedIndices.forEach((idx, i) => {
+                const originalObj = resizeStartData[i];
+                if (!originalObj) return;
+                updatedObjects[idx] = resizeObject(originalObj, newBounds, initialBounds, scaleX, scaleY, anchor);
+            });
+            setObjects(updatedObjects);
+            return;
+        }
+        // --- Single select resize ---
+        if (selectedIndices.length === 1 && resizeStartData.length === 1) {
+            const obj = objects[selectedIndices[0]];
+            const originalObj = resizeStartData[0];
+            const deltaX = x - initialMousePos.x;
+            const deltaY = y - initialMousePos.y;
             let newBounds = { ...initialBounds };
             const minSize = 10;
-
             if (resizeHandle === 'top-left') {
                 newBounds.x = Math.min(initialBounds.x + deltaX, initialBounds.x + initialBounds.width - minSize);
                 newBounds.y = Math.min(initialBounds.y + deltaY, initialBounds.y + initialBounds.height - minSize);
@@ -523,68 +549,23 @@ export function useDraw({
                 newBounds.width = Math.max(minSize, initialBounds.width + deltaX);
                 newBounds.height = Math.max(minSize, initialBounds.height + deltaY);
             }
-
-            const scaleX = initialBounds.width > 0 ? newBounds.width / initialBounds.width : 1;
-            const scaleY = initialBounds.height > 0 ? newBounds.height / initialBounds.height : 1;
-
-            const originalPoints = resizeStartData.data.points;
-            const newPoints = originalPoints.map(point => {
-                const relativeX = initialBounds.width > 0 ? (point.x - initialBounds.x) / initialBounds.width : 0;
-                const relativeY = initialBounds.height > 0 ? (point.y - initialBounds.y) / initialBounds.height : 0;
-
-                return {
-                    x: newBounds.x + relativeX * newBounds.width,
-                    y: newBounds.y + relativeY * newBounds.height
-                };
-            });
-
-            newObjects[selectedIndices[0]] = {
-                ...obj,
-                data: {
-                    ...obj.data,
-                    points: newPoints
-                }
-            };
-        } else if (obj.type === 'shape' && resizeStartData.type === 'shape') {
-            const originalShape = resizeStartData.data;
-            let newStart = { ...originalShape.start };
-            let newEnd = { ...originalShape.end };
-
+            // Clamp scale
+            const scaleX = initialBounds.width > 0 ? Math.max(0.2, Math.min(5, newBounds.width / initialBounds.width)) : 1;
+            const scaleY = initialBounds.height > 0 ? Math.max(0.2, Math.min(5, newBounds.height / initialBounds.height)) : 1;
+            // For single select, anchor is the corner opposite the handle
+            let anchor = { x: initialBounds.x, y: initialBounds.y };
             if (resizeHandle === 'top-left') {
-                newStart = { x: originalShape.start.x + deltaX, y: originalShape.start.y + deltaY };
+                anchor = { x: initialBounds.x + initialBounds.width, y: initialBounds.y + initialBounds.height };
             } else if (resizeHandle === 'top-right') {
-                newStart = { ...originalShape.start, y: originalShape.start.y + deltaY };
-                newEnd = { ...originalShape.end, x: originalShape.end.x + deltaX };
+                anchor = { x: initialBounds.x, y: initialBounds.y + initialBounds.height };
             } else if (resizeHandle === 'bottom-left') {
-                newStart = { ...originalShape.start, x: originalShape.start.x + deltaX };
-                newEnd = { ...originalShape.end, y: originalShape.end.y + deltaY };
-            } else if (resizeHandle === 'bottom-right') {
-                newEnd = { x: originalShape.end.x + deltaX, y: originalShape.end.y + deltaY };
-            }
-
-            newObjects[selectedIndices[0]] = {
-                ...obj,
-                data: {
-                    ...obj.data,
-                    start: newStart,
-                    end: newEnd
-                }
-            };
-        } else if (obj.type === 'text' && resizeStartData.type === 'text') {
-            const originalSize = resizeStartData.data.size;
-            const scale = Math.max(0.5, Math.min(3, 1 + deltaX / 100));
-            const newSize = Math.max(8, Math.min(100, originalSize * scale));
-
-            newObjects[selectedIndices[0]] = {
-                ...obj,
-                data: {
-                    ...obj.data,
-                    size: newSize
-                }
-            };
+                anchor = { x: initialBounds.x + initialBounds.width, y: initialBounds.y };
+            } // else bottom-right: anchor is top-left
+            const updatedObjects = [...objects];
+            updatedObjects[selectedIndices[0]] = resizeObject(originalObj, newBounds, initialBounds, scaleX, scaleY, anchor);
+            setObjects(updatedObjects);
+            return;
         }
-
-        setObjects(newObjects);
     };
 
     const moveSelectedObjects = (offsetX: number, offsetY: number) => {
@@ -729,29 +710,56 @@ export function useDraw({
         const y = e.clientY - rect.top;
 
         if (tool === 'select') {
-            const handle = checkResizeHandleForSelected(x, y);
-            if (handle && selectedIndices.length === 1) {
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            if (selectedIndices.length > 0) {
+                const groupBounds = getGroupBounds(objects, selectedIndices, ctx);
+                if (groupBounds && groupBounds.width > 0 && groupBounds.height > 0) {
+                    const handle = getResizeHandle(x, y, groupBounds);
+                    if (handle) {
+                        setIsResizing(true);
+                        setResizeHandle(handle);
+                        setInitialBounds(groupBounds);
+                        setInitialMousePos({ x, y });
+                        // Store a deep copy of all selected objects for group resize
+                        setResizeStartData(selectedIndices.map(idx => JSON.parse(JSON.stringify(objects[idx]))));
+                        return;
+                    }
+                }
+            }
+            // Single selection: use per-object bounds
+            if (ctx && selectedIndices.length === 1) {
                 const obj = objects[selectedIndices[0]];
                 let bounds;
-
-                if (obj.type === 'stroke') {
-                    bounds = getStrokeBounds(obj.data.points);
-                } else if (obj.type === 'shape') {
-                    bounds = getShapeBounds(obj.data);
-                } else if (obj.type === 'text') {
-                    const ctx = ref.current?.getContext('2d');
-                    if (!ctx) return;
-                    bounds = getTextBounds(obj.data, ctx);
+                if (obj.type === 'stroke') bounds = getStrokeBounds(obj.data.points);
+                else if (obj.type === 'shape') bounds = getShapeBounds(obj.data);
+                else if (obj.type === 'text') bounds = getTextBounds(obj.data, ctx);
+                if (bounds && bounds.width > 0 && bounds.height > 0) {
+                    const handle = getResizeHandle(x, y, bounds);
+                    if (handle) {
+                        setIsResizing(true);
+                        setResizeHandle(handle);
+                        setInitialBounds(bounds);
+                        setInitialMousePos({ x, y });
+                        setResizeStartData(JSON.parse(JSON.stringify(obj)));
+                        return;
+                    }
                 }
-
-                if (bounds) {
-                    setIsResizing(true);
-                    setResizeHandle(handle);
-                    setInitialBounds(bounds);
-                    setInitialMousePos({ x, y });
-                    setResizeStartData(JSON.parse(JSON.stringify(obj)));
+            }
+            // Multiple selection: use group bounds
+            if (ctx && selectedIndices.length > 1) {
+                const groupBounds = getGroupBounds(objects, selectedIndices, ctx);
+                if (groupBounds && groupBounds.width > 0 && groupBounds.height > 0) {
+                    const handle = getResizeHandle(x, y, groupBounds);
+                    if (handle) {
+                        setIsResizing(true);
+                        setResizeHandle(handle);
+                        setInitialBounds(groupBounds);
+                        setInitialMousePos({ x, y });
+                        setResizeStartData([]);
+                        return;
+                    }
                 }
-                return;
             }
 
             const clickedIndex = getPosition(x, y);
@@ -864,7 +872,7 @@ export function useDraw({
             setResizeHandle(null);
             setInitialBounds(null);
             setInitialMousePos(null);
-            setResizeStartData(null);
+            setResizeStartData([]);
             return;
         }
 
@@ -951,6 +959,14 @@ export function useDraw({
         context.globalCompositeOperation = 'source-over';
     };
 
+    const deleteSelected = () => {
+        if (selectedIndices.length === 0) return;
+        const newObjects = objects.filter((_, idx) => !selectedIndices.includes(idx));
+        setObjects(newObjects);
+        setSelectedIndices([]);
+        createHistory(newObjects);
+    };
+
     useEffect(() => {
         scheduleRender();
     }, [objects, current, selectedIndices]);
@@ -960,47 +976,41 @@ export function useDraw({
         if (!canvas) return;
 
         const handleMouseMove = (e: MouseEvent) => {
-            if (tool !== 'select' || selectedIndices.length !== 1) {
+            if (tool !== 'select' || selectedIndices.length === 0) {
                 canvas.style.cursor = getCursor(tool);
                 return;
             }
-
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-
-            const obj = objects[selectedIndices[0]];
-            if (!obj) return;
-
-            let bounds;
-            if (obj.type === 'stroke') {
-                bounds = getStrokeBounds(obj.data.points);
-            } else if (obj.type === 'shape') {
-                bounds = getShapeBounds(obj.data);
-            } else if (obj.type === 'text') {
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return;
-                bounds = getTextBounds(obj.data, ctx);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            const groupBounds = getGroupBounds(objects, selectedIndices, ctx);
+            if (!groupBounds) {
+                canvas.style.cursor = getCursor(tool);
+                return;
             }
-
-            if (bounds) {
-                const handle = getResizeHandle(x, y, bounds);
-                if (handle) {
-                    switch (handle) {
-                        case 'top-left':
-                        case 'bottom-right':
-                            canvas.style.cursor = 'nw-resize';
-                            break;
-                        case 'top-right':
-                        case 'bottom-left':
-                            canvas.style.cursor = 'ne-resize';
-                            break;
-                    }
-                } else if (isPointInBounds({ x, y }, bounds)) {
-                    canvas.style.cursor = 'move';
-                } else {
-                    canvas.style.cursor = getCursor(tool);
+            const handle = getResizeHandle(x, y, groupBounds);
+            if (handle) {
+                switch (handle) {
+                    case 'top-left':
+                    case 'bottom-right':
+                        canvas.style.cursor = 'nw-resize';
+                        break;
+                    case 'top-right':
+                    case 'bottom-left':
+                        canvas.style.cursor = 'ne-resize';
+                        break;
                 }
+            } else if (
+                x >= groupBounds.x &&
+                x <= groupBounds.x + groupBounds.width &&
+                y >= groupBounds.y &&
+                y <= groupBounds.y + groupBounds.height
+            ) {
+                canvas.style.cursor = 'move';
+            } else {
+                canvas.style.cursor = getCursor(tool);
             }
         };
 
@@ -1028,7 +1038,7 @@ export function useDraw({
         canRedo: historyIndex < history.length - 1,
         isEditingText,
         textPosition,
-        selectedIndices,
+        selected: selectedIndices,
         addText,
         onDrawing,
         onStartDrawing,
@@ -1038,6 +1048,8 @@ export function useDraw({
         clear,
         undo,
         redo,
-        toImage
+        toImage,
+        deleteSelected,
+        selectAll: () => setSelectedIndices(objects.map((_, idx) => idx))
     };
 }
