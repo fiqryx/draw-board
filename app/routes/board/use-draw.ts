@@ -1,53 +1,59 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react';
 
 export type ShapeType = 'rectangle' | 'circle' | 'line' | 'arrow';
 export type Tool = 'select' | 'text' | 'pen' | 'pencil' | 'eraser' | 'highlighter' | ShapeType;
-export type Point = { x: number, y: number }
-export type DrawingObject = { type: 'stroke', data: Stroke } | { type: 'shape', data: Shape } | { type: 'text', data: TextObject }
+export type Point = { x: number; y: number };
+export type DrawingObject =
+    | { type: 'stroke'; data: Stroke }
+    | { type: 'shape'; data: Shape }
+    | { type: 'text'; data: TextObject };
 export interface Stroke {
-    points: Point[],
-    color: string,
-    size: number,
-    tool: Tool
+    points: Point[];
+    color: string;
+    size: number;
+    tool: Tool;
 }
 export interface Shape {
-    type: ShapeType
-    start: Point
-    end: Point
-    color: string
-    size: number
-    tool: Tool
+    type: ShapeType;
+    start: Point;
+    end: Point;
+    color: string;
+    size: number;
+    tool: Tool;
 }
 export interface TextObject {
-    text: string,
-    position: Point,
-    color: string,
-    size: number,
-    font: string
+    text: string;
+    position: Point;
+    color: string;
+    size: number;
+    font: string;
 }
-type Options = Omit<Stroke, 'points'> & { backgroundColor?: string }
+type Options = Omit<Stroke, 'points'> & { backgroundColor?: string };
 
-// Add resizing handle type
 type ResizeHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null;
+interface SelectionBox {
+    start: Point;
+    end: Point;
+}
 
 function drawStroke(ctx: CanvasRenderingContext2D, { points, color, size, tool }: Stroke) {
-    if (points.length === 0) return
+    if (points.length === 0) return;
 
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
 
     switch (tool) {
         case 'pencil':
-            ctx.globalAlpha = 0.7
-            ctx.lineWidth = Math.max(1, size * 0.7)
+            ctx.globalAlpha = 0.7;
+            ctx.lineWidth = Math.max(1, size * 0.7);
             break;
         case 'highlighter':
-            ctx.globalAlpha = 0.3
-            ctx.lineWidth = size * 2
+            ctx.globalAlpha = 0.3;
+            ctx.lineWidth = size * 2;
             break;
         default:
-            ctx.lineWidth = size
-            ctx.globalAlpha = 1.0
+            ctx.lineWidth = size;
+            ctx.globalAlpha = 1.0;
             break;
     }
 
@@ -56,7 +62,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, { points, color, size, tool }
     ctx.lineCap = tool === 'highlighter' ? 'square' : 'round';
 
     for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y)
+        ctx.lineTo(points[i].x, points[i].y);
     }
 
     ctx.stroke();
@@ -119,6 +125,19 @@ function drawText(ctx: CanvasRenderingContext2D, { text, position, color, size, 
     ctx.fillText(text, position.x, position.y);
 }
 
+function getCursor(tool: Tool) {
+    switch (tool) {
+        case 'eraser':
+            return 'grab'
+        case 'text':
+            return 'text'
+        case 'select':
+            return 'default'
+        default:
+            return 'crosshair'
+    }
+}
+
 function getShapeBounds(shape: Shape) {
     if (shape.type === 'circle') {
         const width = shape.end.x - shape.start.x;
@@ -144,7 +163,7 @@ function getShapeBounds(shape: Shape) {
         width: maxX - minX,
         height: maxY - minY
     };
-};
+}
 
 function getStrokeBounds(points: Point[]) {
     if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -167,7 +186,7 @@ function getStrokeBounds(points: Point[]) {
         width: maxX - minX,
         height: maxY - minY
     };
-};
+}
 
 function getTextBounds(text: TextObject, ctx: CanvasRenderingContext2D) {
     ctx.font = `${text.size}px ${text.font}`;
@@ -178,7 +197,33 @@ function getTextBounds(text: TextObject, ctx: CanvasRenderingContext2D) {
         width: metrics.width,
         height: text.size * 1.2
     };
-};
+}
+
+function isPointInBounds(point: Point, bounds: { x: number; y: number; width: number; height: number }) {
+    return (
+        point.x >= bounds.x &&
+        point.x <= bounds.x + bounds.width &&
+        point.y >= bounds.y &&
+        point.y <= bounds.y + bounds.height
+    );
+}
+
+function isBoundsInSelection(
+    bounds: { x: number; y: number; width: number; height: number },
+    selection: SelectionBox
+) {
+    const minX = Math.min(selection.start.x, selection.end.x);
+    const maxX = Math.max(selection.start.x, selection.end.x);
+    const minY = Math.min(selection.start.y, selection.end.y);
+    const maxY = Math.max(selection.start.y, selection.end.y);
+
+    return (
+        bounds.x + bounds.width >= minX &&
+        bounds.x <= maxX &&
+        bounds.y + bounds.height >= minY &&
+        bounds.y <= maxY
+    );
+}
 
 export function useDraw({
     color,
@@ -187,30 +232,28 @@ export function useDraw({
     backgroundColor = '#ffffff'
 }: Options) {
     const ref = useRef<HTMLCanvasElement>(null);
-
     const [objects, setObjects] = useState<DrawingObject[]>([]);
-    const [current, setCurrent] = useState<Stroke | Shape | TextObject | null>(null);
-
-    const [isDrawing, setIsDrawing] = useState<boolean>(false);
+    const [current, setCurrent] = useState<Stroke | Shape | TextObject | SelectionBox | null>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
     const [history, setHistory] = useState<DrawingObject[][]>([[]]);
-    const [historyIndex, setHistoryIndex] = useState<number>(0);
-
-    const [isDragging, setIsDragging] = useState<boolean>(false);
+    const [historyIndex, setHistoryIndex] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState<Point | null>(null);
-    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-
-    const [isEditingText, setIsEditingText] = useState<boolean>(false);
+    const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+    const [isEditingText, setIsEditingText] = useState(false);
     const [textPosition, setTextPosition] = useState<Point | null>(null);
-
-    const [isResizing, setIsResizing] = useState<boolean>(false);
+    const [isResizing, setIsResizing] = useState(false);
     const [resizeHandle, setResizeHandle] = useState<ResizeHandle>(null);
-    const [initialBounds, setInitialBounds] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
+    const [initialBounds, setInitialBounds] = useState<{
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    } | null>(null);
     const [initialMousePos, setInitialMousePos] = useState<Point | null>(null);
     const [resizeStartData, setResizeStartData] = useState<DrawingObject | null>(null);
-
-    // Add requestAnimationFrame for smooth rendering
     const animationFrameRef = useRef<number | null>(null);
-    const needsRender = useRef<boolean>(false);
+    const needsRender = useRef(false);
 
     const render = () => {
         const canvas = ref?.current;
@@ -219,7 +262,7 @@ export function useDraw({
         if (!canvas || !ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // draw all objects
+        // Draw all objects
         objects.forEach((item, idx) => {
             if (item.type === 'stroke') {
                 if (item.data.tool === 'eraser') {
@@ -232,7 +275,7 @@ export function useDraw({
                 drawText(ctx, item.data);
             }
 
-            if (tool === 'select' && idx === selectedIndex) {
+            if (tool === 'select' && selectedIndices.includes(idx)) {
                 ctx.setLineDash([5, 5]);
                 ctx.strokeStyle = '#3b82f6';
                 ctx.lineWidth = 1;
@@ -251,20 +294,42 @@ export function useDraw({
                     // Draw selection rectangle
                     ctx.strokeRect(bounds.x - 5, bounds.y - 5, bounds.width + 10, bounds.height + 10);
 
-                    // Draw resize handles
-                    const handleSize = 8;
-                    ctx.fillStyle = '#3b82f6';
-                    ctx.globalAlpha = 1.0;
-                    ctx.setLineDash([]);
+                    // Draw resize handles (only for single selection)
+                    if (selectedIndices.length === 1) {
+                        const handleSize = 8;
+                        ctx.fillStyle = '#3b82f6';
+                        ctx.globalAlpha = 1.0;
+                        ctx.setLineDash([]);
 
-                    // Top-left
-                    ctx.fillRect(bounds.x - 5 - handleSize / 2, bounds.y - 5 - handleSize / 2, handleSize, handleSize);
-                    // Top-right
-                    ctx.fillRect(bounds.x + bounds.width + 5 - handleSize / 2, bounds.y - 5 - handleSize / 2, handleSize, handleSize);
-                    // Bottom-left
-                    ctx.fillRect(bounds.x - 5 - handleSize / 2, bounds.y + bounds.height + 5 - handleSize / 2, handleSize, handleSize);
-                    // Bottom-right
-                    ctx.fillRect(bounds.x + bounds.width + 5 - handleSize / 2, bounds.y + bounds.height + 5 - handleSize / 2, handleSize, handleSize);
+                        // Top-left
+                        ctx.fillRect(
+                            bounds.x - 5 - handleSize / 2,
+                            bounds.y - 5 - handleSize / 2,
+                            handleSize,
+                            handleSize
+                        );
+                        // Top-right
+                        ctx.fillRect(
+                            bounds.x + bounds.width + 5 - handleSize / 2,
+                            bounds.y - 5 - handleSize / 2,
+                            handleSize,
+                            handleSize
+                        );
+                        // Bottom-left
+                        ctx.fillRect(
+                            bounds.x - 5 - handleSize / 2,
+                            bounds.y + bounds.height + 5 - handleSize / 2,
+                            handleSize,
+                            handleSize
+                        );
+                        // Bottom-right
+                        ctx.fillRect(
+                            bounds.x + bounds.width + 5 - handleSize / 2,
+                            bounds.y + bounds.height + 5 - handleSize / 2,
+                            handleSize,
+                            handleSize
+                        );
+                    }
                 }
 
                 ctx.setLineDash([]);
@@ -272,8 +337,31 @@ export function useDraw({
             }
         });
 
-        // live drawing
-        if (isDrawing && current) {
+        // Draw selection box if we're selecting multiple items
+        if (tool === 'select' && isDrawing && current && 'start' in current && 'end' in current) {
+            const { start, end } = current as SelectionBox;
+            const x = Math.min(start.x, end.x);
+            const y = Math.min(start.y, end.y);
+            const width = Math.abs(end.x - start.x);
+            const height = Math.abs(end.y - start.y);
+
+            // Draw semi-transparent fill
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            ctx.fillRect(x, y, width, height);
+
+            // Draw border
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.8;
+            ctx.strokeRect(x, y, width, height);
+
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Live drawing
+        if (isDrawing && current && (('points' in current) || ('type' in current))) {
             const background = tool === 'eraser' ? backgroundColor : color;
             if ('points' in current) {
                 drawStroke(ctx, { ...current, color: background });
@@ -285,7 +373,6 @@ export function useDraw({
         ctx.globalAlpha = 1.0;
     };
 
-    // Optimized rendering with requestAnimationFrame
     const scheduleRender = () => {
         if (!needsRender.current) {
             needsRender.current = true;
@@ -311,15 +398,41 @@ export function useDraw({
                 bounds = getTextBounds(obj.data, ctx);
             }
 
-            if (bounds && x >= bounds.x && x <= bounds.x + bounds.width &&
-                y >= bounds.y && y <= bounds.y + bounds.height) {
+            if (bounds && isPointInBounds({ x, y }, bounds)) {
                 return i;
             }
         }
         return null;
     };
 
-    const getResizeHandle = (x: number, y: number, bounds: { x: number, y: number, width: number, height: number }): ResizeHandle => {
+    const getObjectsInSelection = (selection: SelectionBox) => {
+        const selected: number[] = [];
+        objects.forEach((obj, idx) => {
+            let bounds;
+            if (obj.type === 'stroke') {
+                bounds = getStrokeBounds(obj.data.points);
+            } else if (obj.type === 'shape') {
+                bounds = getShapeBounds(obj.data);
+            } else if (obj.type === 'text') {
+                const ctx = ref.current?.getContext('2d');
+                if (!ctx) return;
+                bounds = getTextBounds(obj.data, ctx);
+            }
+
+            if (bounds && isBoundsInSelection(bounds, selection)) {
+                selected.push(idx);
+            }
+        });
+        return selected;
+    };
+
+    const getResizeHandle = (
+        x: number,
+        y: number,
+        bounds: { x: number; y: number; width: number; height: number }
+    ): ResizeHandle => {
+        if (selectedIndices.length !== 1) return null;
+
         const handleSize = 8;
         const tolerance = handleSize;
 
@@ -354,11 +467,10 @@ export function useDraw({
         return null;
     };
 
-    // Helper function to check if click is on resize handle for the currently selected object
     const checkResizeHandleForSelected = (x: number, y: number): ResizeHandle => {
-        if (selectedIndex === null) return null;
+        if (selectedIndices.length !== 1) return null;
 
-        const obj = objects[selectedIndex];
+        const obj = objects[selectedIndices[0]];
         if (!obj) return null;
 
         let bounds;
@@ -379,20 +491,18 @@ export function useDraw({
         return null;
     };
 
-    // Optimized resize function with bounds checking
     const performResize = (x: number, y: number) => {
-        if (!isResizing || selectedIndex === null || !resizeHandle || !initialBounds || !initialMousePos || !resizeStartData) {
+        if (!isResizing || selectedIndices.length !== 1 || !resizeHandle || !initialBounds || !initialMousePos || !resizeStartData) {
             return;
         }
 
         const newObjects = [...objects];
-        const obj = newObjects[selectedIndex];
+        const obj = newObjects[selectedIndices[0]];
 
         const deltaX = x - initialMousePos.x;
         const deltaY = y - initialMousePos.y;
 
         if (obj.type === 'stroke' && resizeStartData.type === 'stroke') {
-            // Calculate new bounds based on resize handle with minimum size constraints
             let newBounds = { ...initialBounds };
             const minSize = 10;
 
@@ -414,11 +524,9 @@ export function useDraw({
                 newBounds.height = Math.max(minSize, initialBounds.height + deltaY);
             }
 
-            // Safe division with fallback
             const scaleX = initialBounds.width > 0 ? newBounds.width / initialBounds.width : 1;
             const scaleY = initialBounds.height > 0 ? newBounds.height / initialBounds.height : 1;
 
-            // Use original data for consistent scaling
             const originalPoints = resizeStartData.data.points;
             const newPoints = originalPoints.map(point => {
                 const relativeX = initialBounds.width > 0 ? (point.x - initialBounds.x) / initialBounds.width : 0;
@@ -430,7 +538,7 @@ export function useDraw({
                 };
             });
 
-            newObjects[selectedIndex] = {
+            newObjects[selectedIndices[0]] = {
                 ...obj,
                 data: {
                     ...obj.data,
@@ -438,7 +546,6 @@ export function useDraw({
                 }
             };
         } else if (obj.type === 'shape' && resizeStartData.type === 'shape') {
-            // Use original shape data for consistent resizing
             const originalShape = resizeStartData.data;
             let newStart = { ...originalShape.start };
             let newEnd = { ...originalShape.end };
@@ -455,7 +562,7 @@ export function useDraw({
                 newEnd = { x: originalShape.end.x + deltaX, y: originalShape.end.y + deltaY };
             }
 
-            newObjects[selectedIndex] = {
+            newObjects[selectedIndices[0]] = {
                 ...obj,
                 data: {
                     ...obj.data,
@@ -464,12 +571,11 @@ export function useDraw({
                 }
             };
         } else if (obj.type === 'text' && resizeStartData.type === 'text') {
-            // For text, resize by changing font size based on horizontal drag
             const originalSize = resizeStartData.data.size;
-            const scale = Math.max(0.5, Math.min(3, 1 + deltaX / 100)); // Limit scale range
+            const scale = Math.max(0.5, Math.min(3, 1 + deltaX / 100));
             const newSize = Math.max(8, Math.min(100, originalSize * scale));
 
-            newObjects[selectedIndex] = {
+            newObjects[selectedIndices[0]] = {
                 ...obj,
                 data: {
                     ...obj.data,
@@ -477,6 +583,57 @@ export function useDraw({
                 }
             };
         }
+
+        setObjects(newObjects);
+    };
+
+    const moveSelectedObjects = (offsetX: number, offsetY: number) => {
+        const newObjects = [...objects];
+
+        selectedIndices.forEach(index => {
+            const obj = newObjects[index];
+            if (!obj) return;
+
+            if (obj.type === 'stroke') {
+                const newPoints = obj.data.points.map(point => ({
+                    x: point.x + offsetX,
+                    y: point.y + offsetY
+                }));
+                newObjects[index] = {
+                    ...obj,
+                    data: {
+                        ...obj.data,
+                        points: newPoints
+                    }
+                };
+            } else if (obj.type === 'shape') {
+                newObjects[index] = {
+                    ...obj,
+                    data: {
+                        ...obj.data,
+                        start: {
+                            x: obj.data.start.x + offsetX,
+                            y: obj.data.start.y + offsetY
+                        },
+                        end: {
+                            x: obj.data.end.x + offsetX,
+                            y: obj.data.end.y + offsetY
+                        }
+                    }
+                };
+            } else if (obj.type === 'text') {
+                newObjects[index] = {
+                    ...obj,
+                    data: {
+                        ...obj.data,
+                        position: {
+                            x: obj.data.position.x + offsetX,
+                            y: obj.data.position.y + offsetY
+                        }
+                    }
+                };
+            }
+        });
 
         setObjects(newObjects);
     };
@@ -509,76 +666,41 @@ export function useDraw({
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        // Handle resizing with optimized function
         if (isResizing) {
             performResize(x, y);
             scheduleRender();
             return;
         }
 
-        if (isDragging && selectedIndex !== null && dragOffset) {
-            const newObjects = [...objects];
-            const obj = newObjects[selectedIndex];
+        if (isDragging && selectedIndices.length > 0 && dragOffset) {
+            const firstObj = objects[selectedIndices[0]];
+            let objPosition = { x: 0, y: 0 };
 
-            if (obj.type === 'stroke') {
-                const offsetX = x - dragOffset.x;
-                const offsetY = y - dragOffset.y;
-
-                const firstPoint = obj.data.points[0];
-                const deltaX = offsetX - firstPoint.x;
-                const deltaY = offsetY - firstPoint.y;
-
-                const newPoints = obj.data.points.map(point => ({
-                    x: point.x + deltaX,
-                    y: point.y + deltaY
-                }));
-
-                newObjects[selectedIndex] = {
-                    ...obj,
-                    data: {
-                        ...obj.data,
-                        points: newPoints
-                    }
-                };
-            } else if (obj.type === 'shape') {
-                const offsetX = x - dragOffset.x - obj.data.start.x;
-                const offsetY = y - dragOffset.y - obj.data.start.y;
-
-                newObjects[selectedIndex] = {
-                    ...obj,
-                    data: {
-                        ...obj.data,
-                        start: {
-                            x: obj.data.start.x + offsetX,
-                            y: obj.data.start.y + offsetY
-                        },
-                        end: {
-                            x: obj.data.end.x + offsetX,
-                            y: obj.data.end.y + offsetY
-                        }
-                    }
-                };
-            } else if (obj.type === 'text') {
-                newObjects[selectedIndex] = {
-                    ...obj,
-                    data: {
-                        ...obj.data,
-                        position: {
-                            x: x - dragOffset.x,
-                            y: y - dragOffset.y
-                        }
-                    }
-                };
+            if (firstObj.type === 'stroke') {
+                const firstPoint = firstObj.data.points[0];
+                objPosition = { x: firstPoint.x, y: firstPoint.y };
+            } else if (firstObj.type === 'shape') {
+                objPosition = { x: firstObj.data.start.x, y: firstObj.data.start.y };
+            } else if (firstObj.type === 'text') {
+                objPosition = { x: firstObj.data.position.x, y: firstObj.data.position.y };
             }
 
-            setObjects(newObjects);
+            const offsetX = x - objPosition.x - dragOffset.x;
+            const offsetY = y - objPosition.y - dragOffset.y;
+
+            moveSelectedObjects(offsetX, offsetY);
             scheduleRender();
             return;
         }
 
         if (!isDrawing) return;
 
-        if (['pen', 'pencil', 'eraser', 'highlighter'].includes(tool)) {
+        if (tool === 'select' && current && 'start' in current && 'end' in current) {
+            setCurrent({
+                start: (current as SelectionBox).start,
+                end: { x, y }
+            });
+        } else if (['pen', 'pencil', 'eraser', 'highlighter'].includes(tool)) {
             setCurrent(prev => {
                 if (!prev || 'type' in prev) return prev;
                 return {
@@ -607,11 +729,9 @@ export function useDraw({
         const y = e.clientY - rect.top;
 
         if (tool === 'select') {
-            // First check if we're clicking on a resize handle for the currently selected object
             const handle = checkResizeHandleForSelected(x, y);
-            if (handle && selectedIndex !== null) {
-                // We clicked on a resize handle, don't change selection
-                const obj = objects[selectedIndex];
+            if (handle && selectedIndices.length === 1) {
+                const obj = objects[selectedIndices[0]];
                 let bounds;
 
                 if (obj.type === 'stroke') {
@@ -629,34 +749,71 @@ export function useDraw({
                     setResizeHandle(handle);
                     setInitialBounds(bounds);
                     setInitialMousePos({ x, y });
-                    setResizeStartData(JSON.parse(JSON.stringify(obj))); // Deep copy for original data
+                    setResizeStartData(JSON.parse(JSON.stringify(obj)));
                 }
                 return;
             }
 
-            // If not on a resize handle, check for object selection
-            const index = getPosition(x, y);
-            setSelectedIndex(index);
+            const clickedIndex = getPosition(x, y);
+            const isClickOnSelected = clickedIndex !== null && selectedIndices.includes(clickedIndex);
 
-            if (index !== null) {
-                const obj = objects[index];
-                let objPosition = { x: 0, y: 0 };
-
-                if (obj.type === 'stroke') {
-                    const firstPoint = obj.data.points[0];
-                    objPosition = { x: firstPoint.x, y: firstPoint.y };
-                } else if (obj.type === 'shape') {
-                    objPosition = { x: obj.data.start.x, y: obj.data.start.y };
-                } else if (obj.type === 'text') {
-                    objPosition = { x: obj.data.position.x, y: obj.data.position.y };
+            if (e.shiftKey && clickedIndex !== null) {
+                if (isClickOnSelected) {
+                    setSelectedIndices(prev => prev.filter(i => i !== clickedIndex));
+                } else {
+                    setSelectedIndices(prev => [...prev, clickedIndex]);
                 }
 
-                setDragOffset({
-                    x: x - objPosition.x,
-                    y: y - objPosition.y
-                });
-                setIsDragging(true);
+                if (selectedIndices.length > 0) {
+                    const obj = objects[selectedIndices[0]];
+                    let objPosition = { x: 0, y: 0 };
+
+                    if (obj.type === 'stroke') {
+                        const firstPoint = obj.data.points[0];
+                        objPosition = { x: firstPoint.x, y: firstPoint.y };
+                    } else if (obj.type === 'shape') {
+                        objPosition = { x: obj.data.start.x, y: obj.data.start.y };
+                    } else if (obj.type === 'text') {
+                        objPosition = { x: obj.data.position.x, y: obj.data.position.y };
+                    }
+
+                    setDragOffset({
+                        x: x - objPosition.x,
+                        y: y - objPosition.y
+                    });
+                    setIsDragging(true);
+                }
+                return;
             }
+
+            if (clickedIndex === null) {
+                setCurrent({ start: { x, y }, end: { x, y } });
+                setSelectedIndices([]);
+                setIsDrawing(true);
+                return;
+            }
+
+            if (!isClickOnSelected) {
+                setSelectedIndices([clickedIndex]);
+            }
+
+            const obj = objects[clickedIndex];
+            let objPosition = { x: 0, y: 0 };
+
+            if (obj.type === 'stroke') {
+                const firstPoint = obj.data.points[0];
+                objPosition = { x: firstPoint.x, y: firstPoint.y };
+            } else if (obj.type === 'shape') {
+                objPosition = { x: obj.data.start.x, y: obj.data.start.y };
+            } else if (obj.type === 'text') {
+                objPosition = { x: obj.data.position.x, y: obj.data.position.y };
+            }
+
+            setDragOffset({
+                x: x - objPosition.x,
+                y: y - objPosition.y
+            });
+            setIsDragging(true);
             return;
         }
 
@@ -697,11 +854,11 @@ export function useDraw({
         createHistory(newObjects);
         setIsEditingText(false);
         setTextPosition(null);
+        setSelectedIndices([newObjects.length - 1]);
     };
 
     const onStopDrawing = () => {
         if (isResizing) {
-            // Create history when resize is complete
             createHistory([...objects]);
             setIsResizing(false);
             setResizeHandle(null);
@@ -712,10 +869,20 @@ export function useDraw({
         }
 
         if (isDragging) {
-            // Create history when drag is complete
             createHistory([...objects]);
             setIsDragging(false);
             setDragOffset(null);
+            return;
+        }
+
+        if (tool === 'select' && current && 'start' in current && 'end' in current) {
+            const selection = current as SelectionBox;
+            const selected = getObjectsInSelection(selection);
+            if (selected.length > 0) {
+                setSelectedIndices(selected);
+            }
+            setCurrent(null);
+            setIsDrawing(false);
             return;
         }
 
@@ -725,23 +892,25 @@ export function useDraw({
             return;
         }
 
-        const newObject: DrawingObject = 'points' in current
-            ? { type: 'stroke', data: current }
-            : 'type' in current
-                ? { type: 'shape', data: current }
-                : { type: 'text', data: current };
+        if (('points' in current) || ('type' in current)) {
+            const newObject: DrawingObject = 'points' in current
+                ? { type: 'stroke', data: current }
+                : { type: 'shape', data: current };
 
-        const newObjects = [...objects, newObject];
+            const newObjects = [...objects, newObject];
 
-        setObjects(newObjects);
-        createHistory(newObjects);
-        setCurrent(null);
-        setIsDrawing(false);
+            setObjects(newObjects);
+            createHistory(newObjects);
+            setSelectedIndices([newObjects.length - 1]);
+            setCurrent(null);
+            setIsDrawing(false);
+        }
     };
 
     const clear = () => {
         if (objects.length === 0) return;
         setObjects([]);
+        setSelectedIndices([]);
         createHistory([]);
     };
 
@@ -750,6 +919,7 @@ export function useDraw({
             const newIndex = historyIndex - 1;
             setHistoryIndex(newIndex);
             setObjects(history[newIndex]);
+            setSelectedIndices([]);
         }
     };
 
@@ -758,6 +928,7 @@ export function useDraw({
             const newIndex = historyIndex + 1;
             setHistoryIndex(newIndex);
             setObjects(history[newIndex]);
+            setSelectedIndices([]);
         }
     };
 
@@ -782,16 +953,15 @@ export function useDraw({
 
     useEffect(() => {
         scheduleRender();
-    }, [objects, current, selectedIndex]);
+    }, [objects, current, selectedIndices]);
 
     useEffect(() => {
         const canvas = ref.current;
         if (!canvas) return;
 
-        // Add cursor styling based on hover state
         const handleMouseMove = (e: MouseEvent) => {
-            if (tool !== 'select' || selectedIndex === null) {
-                canvas.style.cursor = 'default';
+            if (tool !== 'select' || selectedIndices.length !== 1) {
+                canvas.style.cursor = getCursor(tool);
                 return;
             }
 
@@ -799,7 +969,7 @@ export function useDraw({
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            const obj = objects[selectedIndex];
+            const obj = objects[selectedIndices[0]];
             if (!obj) return;
 
             let bounds;
@@ -826,11 +996,10 @@ export function useDraw({
                             canvas.style.cursor = 'ne-resize';
                             break;
                     }
-                } else if (x >= bounds.x && x <= bounds.x + bounds.width &&
-                    y >= bounds.y && y <= bounds.y + bounds.height) {
+                } else if (isPointInBounds({ x, y }, bounds)) {
                     canvas.style.cursor = 'move';
                 } else {
-                    canvas.style.cursor = 'default';
+                    canvas.style.cursor = getCursor(tool);
                 }
             }
         };
@@ -850,7 +1019,7 @@ export function useDraw({
             window.removeEventListener('resize', resizeCanvas);
             canvas.removeEventListener('mousemove', handleMouseMove);
         };
-    }, [tool, selectedIndex, objects]);
+    }, [tool, selectedIndices, objects]);
 
     return {
         ref,
@@ -859,6 +1028,7 @@ export function useDraw({
         canRedo: historyIndex < history.length - 1,
         isEditingText,
         textPosition,
+        selectedIndices,
         addText,
         onDrawing,
         onStartDrawing,
