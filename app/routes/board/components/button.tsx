@@ -12,7 +12,7 @@ function Button({
             className={cn(
                 "p-2 rounded-full text-white hover:bg-zinc-600 data-[active=true]:bg-zinc-500 data-[active=true]:hover:bg-zinc-500",
                 "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
-                "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5 [&_svg]:shrink-0",
+                "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
                 className
             )}
         />
@@ -28,7 +28,7 @@ function ColorButton({
         <button
             {...props}
             className={cn(
-                'size-8 rounded-full bg-black shadow-md hover:scale-110 transition-transform',
+                'size-5 rounded-sm bg-black shadow-md hover:scale-110 transition-transform',
                 'data-[active=true]:ring-2 data-[active=true]:ring-zinc-500',
                 className
             )}
