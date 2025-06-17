@@ -1,7 +1,8 @@
 {
-  "name": "react-whiteboard",
+  "name": "draw-board",
   "private": true,
   "type": "module",
+  "version": "1.0.3",
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",

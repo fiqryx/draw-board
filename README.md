@@ -6,14 +6,22 @@ A modern, feature-rich whiteboard application built with React and CSS (Tailwind
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)
 
-[![Home](public/home.png)](https://pry-draw-board.vercel.app/)
+[![Home](screenshots/home.png)](https://pry-draw-board.vercel.app/)
 
 ## ✨ Features
 
 ### Drawing Tools
+- **👋 Hand Tool** - Pan and navigate the canvas freely
+- **✔️ Choice Tool** - Select and manipulate objects
 - **🖊️ Pen Tool** - Solid, precise lines for detailed work
 - **✏️ Pencil Tool** - Softer, semi-transparent strokes
 - **🖍️ Highlighter** - Thick, translucent lines for emphasis
+- **🧽 Eraser** - Remove content with adjustable size
+- **📏 Line Tool** - Draw straight lines with precision
+- **➡️ Arrow Tool** - Create directional arrows for diagrams
+- **⬛ Rectangle Tool** - Draw perfect squares/rectangles
+- **⭕ Circle Tool** - Create ellipses or perfect circles
+- **🔤 Text Tool** - Add customizable text labels
 - **🧽 Eraser** - Remove content with adjustable size
 
 ### Customization Options
@@ -25,10 +33,9 @@ A modern, feature-rich whiteboard application built with React and CSS (Tailwind
 ### User Interface
 - **📱 Responsive Design** - Works on desktop, tablet, and mobile
 - **🎯 Floating Controls** - Intuitive, non-intrusive interface
-- **✨ Glassmorphism UI** - Modern semi-transparent panels
 - **🎮 Touch Support** - Native touch drawing for mobile devices
 
-[![Home](public/drawboard.gif)](https://pry-draw-board.vercel.app/)
+[![Home](screenshots/drawboard-1.0.3.gif)](https://pry-draw-board.vercel.app/)
 
 ## 🚀 Quick Start
 
@@ -66,23 +73,6 @@ npm run dev
 - **Highlighter**: 2x width with 30% opacity - great for emphasis
 - **Eraser**: 2x width with destination-out blend mode - removes content
 
-## 🎨 Interface Layout
-
-### Floating Panels
-- **Top Left**: Drawing tools (Pen, Pencil, Eraser, Highlighter)
-- **Top Center**: Color palette with 7 presets + custom picker
-- **Top Right**: Brush size control with live preview
-- **Right Side**: Action buttons (Undo, Redo, Clear)
-- **Bottom Left**: Theme switcher (White/Dark board)
-- **Bottom Right**: Status display (Current tool, color, size)
-
-## 🛠️ Technical Details
-
-### Built With
-- **React** - Core drawing functionality
-- **React Router v7** - No external dependencies
-- **Tailwind CSS** - Modern, utility-first styling
-
 ### Browser Support
 - ✅ Chrome 88+
 - ✅ Firefox 85+
@@ -94,7 +84,6 @@ npm run dev
 - Efficient canvas rendering
 - Optimized touch event handling
 - Minimal memory footprint
-- Smooth 60fps drawing experience
 
 ## 📱 Mobile Experience
 
@@ -105,16 +94,6 @@ The whiteboard is fully optimized for mobile devices:
 - Automatic canvas scaling
 
 ## 🔧 Customization
-
-### Colors
-The default palette includes:
-- Black (#000000)
-- Red (#ef4444)
-- Blue (#3b82f6)
-- Green (#10b981)
-- Yellow (#eab308)
-- Purple (#8b5cf6)
-- Pink (#ec4899)
 
 ## 🎯 Use Cases
 
@@ -127,7 +106,7 @@ The default palette includes:
 <!-- ## 🚧 Roadmap
 
 ### Planned Features
-- [ ] Shape tools (rectangle, circle, line)
+- [x] Shape tools (rectangle, circle, line)
 - [ ] Text tool with font selection
 - [ ] Layer management
 - [ ] Save/export functionality (PNG, SVG, PDF)
